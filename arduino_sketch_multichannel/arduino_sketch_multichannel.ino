@@ -27,14 +27,14 @@
 //### Thus most arrays have a length of 8. Adapt the following lines to your use.     ###
 //#######################################################################################
 
-const int s1ChannelNumber = 1;                                                          // number of used channels on sensor 1
-const int s2ChannelNumber = 0;                                                          // number of used channels on sensor 2
+const int s1ChannelNumber = 4;                                                          // number of used channels on sensor 1
+const int s2ChannelNumber = 2;                                                          // number of used channels on sensor 2
 const int channelNumber = s1ChannelNumber + s2ChannelNumber;                            // total number of measurement channels
 long int samples = 3;                                                                   // number of measurements that are averaged to one air saturation value 
                                                                                         // to reduce sensor fluctuation (oversampling)
-char fishID[8][6] = {"B4", "ID2", "ID3", "ID4", "ID5", "ID6", "ID7", "ID8"};           // IDs assigned to the channels in the order of the channelArray
+char fishID[8][6] = {"B4", "C3", "B1", "E7", "E3", "ID6", "ID7", "ID8"};           // IDs assigned to the channels in the order of the channelArray
 long interval = 30 * 1000UL;                                                            // measurement and control interval in second
-double airSatThreshold[8] = {60.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0};    // air saturation threshold including first decimal                            
+double airSatThreshold[8] = {15.0, 15.0, 15.0, 70.0, 30.0, 60.0, 100.0, 100.0};    // air saturation threshold including first decimal                            
 const int chipSelect = 10;                                                              // chip pin for SD card (UNO: 4; MEGA: 53, Adafruit shield: 10)
 double securityThreshold = 12.0;                                                        // threshold for low oxygen that causes the program to halt
 int channelArray[8] = {1, 2, 3, 4, 1, 2, 3, 4};                                         // input channels on firesting devices 1 and 2 in that order
@@ -55,8 +55,8 @@ int relayPin[2][8] = {                                          // pins for rela
   {23, 25, 27, 29, 31, 33, 35, 37}
 };     
 double Kp[8] = {10, 10, 10, 10, 10, 10, 10, 10};    // coefficient for proportional control
-double Ki[8] = {0, 0, 0, 0, 0, 0, 0, 0};            // coefficient for integrative control
-double Kd[8] = {0, 0, 0, 0, 0, 0, 0, 0};            // coefficient for differential control
+double Ki[8] = {1, 1, 1, 1, 0, 0, 0, 0};            // coefficient for integrative control
+double Kd[8] = {1, 1, 1, 1, 0, 0, 0, 0};            // coefficient for differential control
 long int WindowSize = 50;                                       // The PID will calculate an output between 0 and 50.
                                                                 // This will be multiplied by 200 to ensure a minimum opening time of 200 msec. 
                                                                 // E.g. output = 1 -> opening time 200 msec; output 50 -> opening time 10,000 msec
@@ -261,19 +261,18 @@ void showNewData() {
   if (newData == true && emptyBuffer == true) {
     lcd.clear();
     lcd.setCursor(0, 0);
-    for (int l = 0; l < (channelNumber - 1); l++) {
-      if (l == 4) {                                     
+    for (int i = 0; i < (channelNumber); i++) {
+      if (i == 4) {                                     
         lcd.setCursor(0, 1);                          // break line on LCD display when the 5th DO value is reached
       }
       Serial.print("Floating point values: ");
-      Serial.print(airSatFloat[l]);
+      Serial.print(airSatFloat[i]);
       Serial.print("; ");
-      airSatLCD = int(lround(airSatFloat[l]));
+      airSatLCD = int(lround(airSatFloat[i]));
       lcd.print(airSatLCD);
       lcd.print(" ");
     }
-    Serial.println(airSatFloat[channelNumber - 1]);
-    lcd.print(int(lround(airSatFloat[channelNumber - 1])));
+    Serial.println();
     newData = false;
   }
 }
@@ -294,7 +293,7 @@ void securityCheck() {
 //### Toggle relay based on measured airSat values ###
 void toggleRelay() {
   
-  relay1PID.Compute();                                      // compute the output (output * 200 = opening time) based on the input (air saturation) and threshold
+  relay1PID.Compute();                                  // compute the output (output * 200 = opening time) based on the input (air saturation) and threshold
   relay2PID.Compute();
   relay3PID.Compute();
   relay4PID.Compute();
@@ -303,84 +302,65 @@ void toggleRelay() {
   relay7PID.Compute();
   relay8PID.Compute();
   
-//  if (channelNumber == 1){
-//    Serial.print("Relay Pins: ");
-//    Serial.print(relayPin[0][0]);
-//    Serial.print(", ");
-//    Serial.print(relayPin[1][0]);
-//    Serial.print("; Input: ");
-//    Serial.print(airSatFloat[0]);
-//    Serial.print("; Output: ");
-//    Serial.println(long(Output[0])*200);
-//    Serial.print("length of airSatFloat: ");
-//    Serial.println(sizeof(airSatFloat)/sizeof(airSatFloat[0]));
-//    digitalWrite(relayPin[0][0], LOW);
-//    digitalWrite(relayPin[1][0], LOW);
-//    delay(long(Output[0])*200);
-//    digitalWrite(relayPin[0][0], HIGH);
-//    digitalWrite(relayPin[1][0], HIGH);    
-//  }
-//  
-//  else if (channelNumber > 1){
-    for (int i = 0; i < channelNumber; i++) {
-      relayArray[0][i] = relayPin[0][i];
-      relayArray[1][i] = relayPin[1][i];
-      relayArray[2][i] = long(Output[i]*200);             //PID computes an output between 0 and 50, the multiplicator makes sure that the relay operation time is at least 200ms
-      relayArray[3][i] = airSatFloat[i];
-    }
-    
-    long int temp[4];                                     // temporary array to sort all channels with the smallest based on the computed output (lowest output first). 
-                                                          // This is necessary as the valves are kept open using the delay()-function which halts all activity. 
-                                                          // With 8 channels, opening one valve after the other is too time consuming. With the opening times sorted, all valves 
-                                                          // can be opened at the same time and then closed one after another.
-    for (int i = 0; i < channelNumber - 1; i++) {         // loop to sort array with lowest difference first
-      for (int j = i + 1; j < channelNumber; j++) {
-        if (relayArray[2][j] < relayArray[2][i]) {
-          temp[0] = relayArray[0][i];                     // store higer value + relayPin in temp array
-          temp[1] = relayArray[1][i];
-          temp[2] = relayArray[2][i];
-          temp[3] = relayArray[3][i];
+  for (int i = 0; i < channelNumber; i++) {
+    relayArray[0][i] = relayPin[0][i];
+    relayArray[1][i] = relayPin[1][i];
+    relayArray[2][i] = double(int(Output[i])*200.00);   // PID computes an output between 0 and 50, the multiplicator makes sure that the relay operation time is at least 200ms
+    relayArray[3][i] = airSatFloat[i];
+  }
   
-          relayArray[0][i] = relayArray[0][j];            // move lower value to position i
-          relayArray[1][i] = relayArray[1][j];
-          relayArray[2][i] = relayArray[2][j];
-          relayArray[3][i] = relayArray[3][j];
-  
-          relayArray[0][j] = temp[0];                     // insert higher value at position j
-          relayArray[1][j] = temp[1];                     // now the values at i and j have switched places in the relayArray
-          relayArray[2][j] = temp[2];
-          relayArray[3][j] = temp[3];
-        }
+  long int temp[4];                                     // temporary array to sort all channels with the smallest based on the computed output (lowest output first). 
+                                                        // This is necessary as the valves are kept open using the delay()-function which halts all activity. 
+                                                        // With 8 channels, opening one valve after the other is too time consuming. With the opening times sorted, all valves 
+                                                        // can be opened at the same time and then closed one after another.
+  for (int i = 0; i < channelNumber - 1; i++) {         // loop to sort array with lowest difference first
+    for (int j = i + 1; j < channelNumber; j++) {
+      if (relayArray[2][j] < relayArray[2][i]) {
+        temp[0] = relayArray[0][i];                     // store higer value + relayPin in temp array
+        temp[1] = relayArray[1][i];
+        temp[2] = relayArray[2][i];
+        temp[3] = relayArray[3][i];
+
+        relayArray[0][i] = relayArray[0][j];            // move lower value to position i
+        relayArray[1][i] = relayArray[1][j];
+        relayArray[2][i] = relayArray[2][j];
+        relayArray[3][i] = relayArray[3][j];
+
+        relayArray[0][j] = temp[0];                     // insert higher value at position j
+        relayArray[1][j] = temp[1];                     // now the values at i and j have switched places in the relayArray
+        relayArray[2][j] = temp[2];
+        relayArray[3][j] = temp[3];
       }
     }
-  
-    for (int i = 0; i < channelNumber; i++) {             // print input and output to serial monitor - this is handy to control, how the PID is behaving
-      Serial.print("Relay Pin: ");
-      Serial.print(relayArray[0][i]);
-      Serial.print("Input: ");
-      Serial.print(relayArray[3][i]);
-      Serial.print("; Output: ");
-      Serial.println(relayArray[2][i]);
-    }
-  
-    for (int i = 0; i < channelNumber; i++) {
-      if (relayArray[2][i] > 0){                              // skip the channels that don't have to be operated
-        for (int j = i; j < channelNumber; j++) {             // open all other valves
-          digitalWrite(relayArray[0][j], LOW);
-          digitalWrite(relayArray[1][j], LOW);
-        }
-        if (i == 0) {                                         // close the valve with the lowest output first
-          delay(relayArray[2][i]);
-          digitalWrite(relayArray[0][i], HIGH);
-          digitalWrite(relayArray[1][i], HIGH);
-        }
-        else {
-          delay(relayArray[2][i] - relayArray[2][i - 1]);     // keep the other valves open based on the difference of the output value
-          digitalWrite(relayArray[0][i], HIGH);               // close the valve
-        }
+  }
+
+  for (int i = 0; i < channelNumber; i++) {             // print input and output to serial monitor - this is handy to control, how the PID is behaving
+    Serial.print("Relay Pin: ");
+    Serial.print(relayArray[0][i]);
+    Serial.print("Input: ");
+    Serial.print(relayArray[3][i]);
+    Serial.print("; Output: ");
+    Serial.println(relayArray[2][i]);
+  }
+
+  for (int i = 0; i < channelNumber; i++) {
+    if (relayArray[2][i] > 0){                              // skip the channels that don't have to be operated (output = 0.00)
+      for (int j = i; j < channelNumber; j++) {             // open all other valves
+        digitalWrite(relayArray[0][j], LOW);
+        digitalWrite(relayArray[1][j], LOW);
+      }
+      if (i == 0) {                                         // close the valve with the lowest output first
+        delay(relayArray[2][i]);
+        digitalWrite(relayArray[0][i], HIGH);
+        digitalWrite(relayArray[1][i], HIGH);
+      }
+      else {
+        delay(relayArray[2][i] - relayArray[2][i - 1]);     // keep the other valves open based on the difference of the output value
+        digitalWrite(relayArray[0][i], HIGH);               // close the valve
+        digitalWrite(relayArray[1][i], HIGH);
       }
     }
-//  }
+  }
 }
 
 
@@ -408,11 +388,11 @@ void writeToSD() {
     logfile.print(":");
     logfile.print(now.second(), DEC);
     logfile.print(";");
-    for (int i = 0; i < channelNumber - 1; i++) {     // print air saturation measurements for each channel
+    for (int i = 0; i < channelNumber; i++) {     // print air saturation measurements for each channel
       logfile.print(airSatFloat[i]);
       logfile.print(";");
     }
-    logfile.println(airSatFloat[channelNumber - 1]);
+    logfile.println();
     logfile.flush();                                  // save data to logfile
   }
 }
@@ -554,11 +534,11 @@ void setup() {
     logfile.print(";Active channels:;");
     logfile.println(channelNumber);
     logfile.print("Air sat threshold [% air saturation]:;");
-    for (int i = 0; i < (channelNumber - 1); i++) {
+    for (int i = 0; i < (channelNumber); i++) {
       logfile.print(airSatThreshold[i]);
       logfile.print(";");
     }
-    logfile.println(airSatThreshold[channelNumber - 1]);
+    logfile.println();
     logfile.print("Fish ID:;");
     for (int i = 0; i < (channelNumber - 1); i++) {
       logfile.print(fishID[i]);
@@ -573,11 +553,11 @@ void setup() {
     logfile.println(channelArray[channelNumber - 1]);
     logfile.println(";");
     logfile.print("Measurement;Date;Time;");                  // header row for measurements: Measurement, Date, Time, FishID1, FishID2,...
-    for (int i = 0; i < (channelNumber - 1); i++) {
+    for (int i = 0; i < (channelNumber); i++) {
       logfile.print(fishID[i]);
       logfile.print(";");
     }
-    logfile.println(fishID[channelNumber - 1]);
+    logfile.println();
   }
   else if (!logfile) {                                        // check if logfile was created
     Serial.println("error: couldn't create logfile");
@@ -604,14 +584,14 @@ void setup() {
   delay(1000);
   lcd.clear();
   for (int i = 0; i < channelNumber; i++){
-    if (i > 1 && i < 4){
+    if (i == 2){
       lcd.setCursor(0, 1);
     }
-    else if (i > 3 && i < 6){
+    else if (i == 4){
       delay(2000);
       lcd.clear();
     }
-    else if (i > 5){
+    else if (i == 6){
       lcd.setCursor(0, 1);
     }
     lcd.print(airSatThreshold[i]);
@@ -624,7 +604,7 @@ void setup() {
 //#######################################################################################
 //###                                 Main loop                                       ###
 //###               Congratulations, you made it to the main loop.                    ###
-//### I inserted delays between many subfunctions to ensure their completion before   ###
+//### I inserted delays between every subfunctions to ensure their completion before  ###
 //### the program moves to the next step. Some of these are crucial as the sensor     ###
 //### needs time to complete measurements. Also with serial communication, we want to ###
 //### make sure that everything has been completely sent and received.                ###
@@ -632,6 +612,10 @@ void setup() {
 
 void loop() {
   startTime = millis();                                       // start timer of loop
+  for (int i = 0; i < channelNumber; i++) {                   // close all valves to make sure
+    digitalWrite(relayPin[0][i], HIGH);
+    digitalWrite(relayPin[1][i], HIGH);
+  }
   for (int i = 0; i < channelNumber; i++) {                   // loop that iterates through every channel
     airSatSum = 0;                                            // reset summing variable for measurements
     airSatReading = 0;                                        // reset air saturation holder variable
