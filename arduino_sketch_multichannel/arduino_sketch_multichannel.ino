@@ -276,6 +276,26 @@ void showNewData() {
   if (newData == true && emptyBuffer == true) {
     lcd.clear();
     lcd.setCursor(0, 0);
+    DateTime now;
+    now = RTC.now();  
+    Serial.print(now.year(), DEC);
+    Serial.print('/');
+    Serial.print(now.month(), DEC);
+    Serial.print('/');
+    Serial.print(now.day(), DEC);
+    Serial.print(" - ");
+    Serial.print(now.hour(), DEC);
+    Serial.print(':');
+    Serial.print(now.minute(), DEC);
+    Serial.print(':');
+    Serial.print(now.second(), DEC);
+    Serial.println();
+    for (int i = 0; i < 2; i++){
+      Serial.print(tempID[i]);
+      Serial.print(": ");
+      Serial.print(tempFloat[i]);
+      Serial.println("°C ");
+    }
     for (int i = 0; i < (channelNumber); i++) {
       if (i == 4) {                                     
         lcd.setCursor(0, 1);                          // break line on LCD display when the 5th DO value is reached
@@ -665,6 +685,20 @@ void loop() {
           newData = false;
         } 
         else if (comCheck == false){                          // reboot system if communication error occurs
+          DateTime now;
+          now = RTC.now();  
+          Serial.print(now.year(), DEC);
+          Serial.print('/');
+          Serial.print(now.month(), DEC);
+          Serial.print('/');
+          Serial.print(now.day(), DEC);
+          Serial.print(" - ");
+          Serial.print(now.hour(), DEC);
+          Serial.print(':');
+          Serial.print(now.minute(), DEC);
+          Serial.print(':');
+          Serial.print(now.second(), DEC);
+          Serial.println();
           Serial.println("Communication error!");
           resetFunc();
         }
