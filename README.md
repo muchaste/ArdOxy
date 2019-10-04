@@ -1,5 +1,4 @@
 # ArdOxy - Beta
 An Arduino controlled system for long term automated oxygen control in fish tanks with FireStingO2 optical oxygen sensors.
 
-BETA VERSION - Work in progress
-There is an issue with the serial communication between sensor and Arduino. The code works around that issue, rebooting everytime it occurs.
+This is work in progress - the system was successfully used in an 8-week long term study.
