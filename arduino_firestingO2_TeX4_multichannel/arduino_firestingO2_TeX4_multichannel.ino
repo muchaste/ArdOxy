@@ -31,13 +31,13 @@
 //### Thus most arrays have a length of 8. Adapt the following lines to your use.     ###
 //#######################################################################################
 
-const int s1ChannelNumber = 4;                                                          // number of used channels on sensor 1
-const int s2ChannelNumber = 4;                                                          // number of used channels on sensor 2
+const int s1ChannelNumber = 4;                                                          // number of used channels on DO and temperature sensor 1
+const int s2ChannelNumber = 4;                                                          // number of used channels on DO and temperature sensor 2
 const int channelNumber = s1ChannelNumber + s2ChannelNumber;                            // total number of measurement channels
 long int samples = 1;                                                                   // number of measurements that are averaged to one air saturation value 
                                                                                         // to reduce sensor fluctuation (oversampling)
 char tankID[8][6] = {"B4", "C3", "B1", "C8", "E7", "E4", "E1", "D6"};                   // IDs assigned to the channels in the order of the channelArray
-char tempID[2][6] = {"B4", "E4"};                                                       // tanks where the temperature sensors are placed (1 per sensor)
+//char tempID[2][6] = {"B4", "E4"};                                                       // tanks where the temperature sensors are placed (1 per sensor)
 long interval = 30 * 1000UL;                                                            // measurement and control interval in second
 double airSatThreshold[8] = {100.0, 100.0, 100.0, 15.0, 100.0, 15.0, 15.0, 15.0};       // air saturation threshold including first decimal                            
 const int chipSelect = 10;                                                              // chip pin for SD card (UNO: 4; MEGA: 53, Adafruit shield: 10)
@@ -62,7 +62,7 @@ int relayPin[2][8] = {                              // pins for relay operation 
 double Kp[8] = {10, 10, 10, 10, 10, 10, 10, 10};    // coefficient for proportional control
 double Ki[8] = {1, 1, 1, 1, 1, 1, 1, 1};            // coefficient for integrative control
 double Kd[8] = {1, 1, 1, 1, 1, 1, 1, 1};            // coefficient for differential control
-long int WindowSize = 75;                           // The PID will calculate an output between 0 and 100.
+long int WindowSize = 75;                           // The PID will calculate an output between 0 and 75.
                                                     // This will be multiplied by 200 to ensure a minimum opening time of 200 msec. 
                                                     // E.g. output = 1 -> opening time 200 msec; output 50 -> opening time 10,000 msec
 
@@ -79,6 +79,8 @@ long int WindowSize = 75;                           // The PID will calculate an
 boolean lowDO = false;                        // boolean for low oxygen threshold
 int activeSensor = 1;                         // index to switch between sensors (if s2ChannelNumber = 0 it stays at 1)
 int activeChannel = 1;                        // measurement channel
+HardwareSerial &tempSerial = Serial;
+HardwareSerial &DOSerial = Serial1;
 boolean newData = false;                      // true if serial data was received from sensors
 boolean emptyBuffer = false;                  // true if buffer for serial data is empty
 boolean comCheck = false;                     // true if echoed command matches sent command
@@ -87,6 +89,8 @@ boolean comCheck = false;                     // true if echoed command matches 
 unsigned long startTime;                      // time taken at start of loop
 unsigned long endTime;                        // time taken at end of loop
 unsigned long elapsed;                        // elapsed time between end- and start-time
+int curday;
+int lastday;
 
 //# Logging and SD card #
 RTC_PCF8523 RTC;                              // real time clock
@@ -96,21 +100,23 @@ int fn = 0;                                   // filename index for .csv file
 int n = 0;                                    // row index for logging
 
 //# Oxygen optode #
-char toggleMeasString[6] = "SEQ 1";           // measurement commmand that is sent to sensor during void toggleMeasurement(). SEQ triggers a sequence of measurements 
-                                              // (humidity, temperature, pressure, air saturation). This way, the air saturation values will be compensated automatically
-                                              // for fluctuations in humidity, temperature and pressure.
-char toggleDORead[10] = "REA 1 3 4";          // template for DO-read command that is sent to sensor during void toggleRead() (length = 10 because of /0 string terminator)
-char toggleTempRead[10] = "REA 1 3 5";        // temperature read command
+char DOMeasCom[7] = "MSR1\r";                 // measurement commmand that is sent to sensor during void toggleMeasurement(). Number indicates measurement channel
+char TempMeasCom[7] = "TMP1\r";               // measurement commmand that is sent to sensor during void toggleMeasurement(). Number indicates measurement channel
+char DOReadCom[11] = "REA1 3 4\r";            // template for DO-read command that is sent to sensor during void toggleRead() (length = 10 because of /0 string terminator)
+char TempReadCom[11] = "REA1 3 1\r";          // temperature read command
+char TempWriteCom[17] = "WRT1 0 0 20000\r";   // temperature write command to write measured temperature in the same channel of DO sensor for temperature compensation
 const byte numChars = 30;                     // array length for incoming serial data (longer than needed)
 char receivedChars[numChars];                 // array to store the incoming serial data (used in receiveData() )
 char bufferChars[numChars];                   // array to store incoming data that is not needed (used in clearBuffer() )
 int len;                                      // length of actually received serial data
 char valueStr[20];                            // array to hold only readings from receivedChars (longer than needed)
-long valueInt;                                // variable for readings that are parsed from valueStr
+long DOInt;                                   // variable for readings that are parsed from valueStr
+long tempInt;
 long airSatSum;                               // summing variable for air saturations in case oversampling is used (see sample variable)
-double airSatFloat[channelNumber];                        // array for floating point value of air saturation for datalogging, display etc.
+double airSatFloat[channelNumber];            // array for floating point value of air saturation for datalogging, display etc.
 double lowDOValue;                            // variable for low DO values that are below the critical threshold defined above
-double tempFloat[2];                          // array to store temperature readings for logging
+char lowDOTank[6];                            // array for tank name in which low DO has been measured
+double tempFloat[channelNumber];              // array to store temperature readings for logging
 
 //# Relay operation #
 double relayArray[4][channelNumber];                      // array with relay pin and assigned output values
@@ -139,185 +145,127 @@ int airSatLCD = 0;                                      // integer to display ro
 //### basics of serial communication (http://forum.arduino.cc/index.php?topic=396450).###
 //#######################################################################################
 
-//# Send the commands to toggle measurement to and readout values from the FireStingO2 devices via Serial #
+//# Send the commands to toggle measurement to and readout values from the FireStingO2 and TeX4 devices via Serial #
 //# I copied these functions to switch serial ports based on the active sensor. There's probably a better way to do this
-void toggleMeasurement(char command[6]) {
-  if (activeSensor == 1) {
-    Serial1.write(command);
-    Serial1.write('\r');
-    emptyBuffer = false;
-    Serial1.flush();
-  }
-  else if (activeSensor == 2) {
-    Serial2.write(command);
-    Serial2.write('\r');
-    emptyBuffer = false;
-    Serial2.flush();
-  }
-}
-
-void toggleRead(char command[10]) {
-  if (activeSensor == 1) {
-    Serial1.write(command);
-    Serial1.write('\r');
-    Serial1.flush();
-  }
-  else if (activeSensor == 2) {
-    Serial2.write(command);
-    Serial2.write('\r');
-    Serial2.flush();
-  }
-}
-
-
-//# Receive serial data (modified from http://forum.arduino.cc/index.php?topic=396450) #
-void receiveData() {                                                                    // receives serial data and stores it in array until endmarker is received
-  static byte ndx = 0;                                                                  // index for storing in the array
-  char endMarker = '\r';                                                                // declare the character that marks the end of a serial transmission
-  char rc;                                                                              // temporary variable to hold the last received character
-  if (activeSensor == 1) {
-    while (Serial1.available() > 0 && newData == false && emptyBuffer == true) {        // only read serial data if the buffer was emptied before and it's new data
-      delay(2);                                                                        
-      rc = Serial1.read();
-      if (rc != endMarker) {
-        receivedChars[ndx] = rc;                                                        // store the latest character in character array
-        ndx++;
-        if (ndx >= numChars) {                                                          // make sure that array size is not exceeded
-          ndx = numChars - 1;
-        }
-      }
-      else {
-        receivedChars[ndx] = '\0';                                                      // terminate the string if the end marker is received
-        ndx = 0;
-        newData = true;                                                                 // new data has been received and is in the receivedChars buffer
-        comCheck = false;                                                               // the incoming string has not yet been checked with the sent string
-      }
-    }
-  }
-  else if (activeSensor == 2) {                                                         // same as above for the second sensor
-    while (Serial2.available() > 0 && newData == false && emptyBuffer == true) {
-      delay(2);
-      rc = Serial2.read();
-      if (rc != endMarker) {
-        receivedChars[ndx] = rc;
-        ndx++;
-        if (ndx >= numChars) {
-          ndx = numChars - 1;
-        }
-      }
-      else {
-        receivedChars[ndx] = '\0';
-        ndx = 0;
-        newData = true;
-        comCheck = false;
-      }
-    }
-  }
-}
-
-//# Clear the serial buffer (modified from http://forum.arduino.cc/index.php?topic=396450) #
-void clearBuffer() {                                                                    // similar to receiveData(), clears serial buffer from echoes
+int toggleTempMeasurement(char command[7]) {
   static byte ndx = 0;
   char endMarker = '\r';
   char rc;
-  if (activeSensor == 1) {
-    while (Serial1.available() > 0 && emptyBuffer == false) {
-      delay(2);
-      rc = Serial1.read();
-      if (rc != endMarker) {
-        bufferChars[ndx] = rc;
-        ndx++;
-        if (ndx >= numChars) {
-          ndx = numChars - 1;
-        }
-      }
-      else {
-        bufferChars[ndx] = '\0';  // terminate the string
-        ndx = 0;
-        emptyBuffer = true;
-        newData = false;
+  newData = false;
+  tempSerial.write(command);
+  tempSerial.flush();
+  delay(300);                               
+  // Read echoed command + temperature values
+  while (tempSerial.available() > 0 && newData == false) {         // only read serial data if the buffer was emptied before and it's new data
+    delay(2);                                                                        
+    rc = tempSerial.read();
+    if (rc != endMarker) {
+      receivedChars[ndx] = rc;                                                        // store the latest character in character array
+      ndx++;
+      if (ndx >= numChars) {                                                          // make sure that array size is not exceeded
+        ndx = numChars - 1;
       }
     }
+    else {
+      receivedChars[ndx] = '\0';                                                      // terminate the string if the end marker is received
+      ndx = 0;
+      newData = true;                                                                 // new data has been received and is in the receivedChars buffer
+    }
   }
-  else if (activeSensor == 2) {
-    while (Serial2.available() > 0 && emptyBuffer == false) {
-      delay(2);
-      rc = Serial2.read();
-      if (rc != endMarker) {
-        bufferChars[ndx] = rc;
-        ndx++;
-        if (ndx >= numChars) {
-          ndx = numChars - 1;
-        }
+  // Extract values from echoed string and convert to long integer
+  len = strlen(receivedChars)+1;                  // get length of received string + termination \0
+  len = len - 5;                                 // subtract the length of the echoed "TMP1 "
+  for (int k = 0; k < len; k++) {                 // store the last digits of string in new character array valueStr, starting at and including position 10. This is necessary as
+    valueStr[k] = receivedChars[(5 + k)];        // the sensor echoes the readout command, e.g. "REA1 3 4" before the air saturation values
+  }
+  tempInt = atol(valueStr);                      // parse the character to integers - the air saturation values are given as [% air saturation x 1000], temperature as [°C x 1000]
+  return tempInt;
+}
+
+void toggleDOMeasurement(char command[7]) {
+  newData = false;
+  emptyBuffer = false;
+  static byte ndx = 0;
+  char endMarker = '\r';
+  char rc;
+  DOSerial.write(command);
+  DOSerial.flush();
+  delay(300);
+  // Clear echoed measurement command from serial buffer
+  while (DOSerial.available() > 0 && emptyBuffer == false) {
+    delay(2);
+    rc = DOSerial.read();
+    if (rc != endMarker) {
+      bufferChars[ndx] = rc;
+      ndx++;
+      if (ndx >= numChars) {
+        ndx = numChars - 1;
       }
-      else {
-        bufferChars[ndx] = '\0';  // terminate the string
-        ndx = 0;
-        emptyBuffer = true;
-        newData = false;
-      }
+    }
+    else {
+      bufferChars[ndx] = '\0';  // terminate the string
+      ndx = 0;
+      emptyBuffer = true;
     }
   }
 }
 
-//# Extract air saturation and temperature values from received serial data #
-int extractValue() {            
-  len = strlen(receivedChars)+1;                  // get length of received string + termination \0
-  len = len - 10;                                 // subtract the length of the echoed read command - I determined this by testing it, there might be a smarter way to do this
-  for (int i = 0; i < len; i++) {                 // store the last digits of string in new character array valueStr, starting at and including position 10. This is necessary as
-    valueStr[i] = receivedChars[(10 + i)];        // the sensor echoes the readout command, e.g. "REA 1 3 4" before the air saturation values
+//# Receive serial data (modified from http://forum.arduino.cc/index.php?topic=396450) #
+int receiveDOData(char command[11]) {                                                                    // receives serial data and stores it in array until endmarker is received
+  static byte ndx = 0;                                                                  // index for storing in the array
+  char endMarker = '\r';                                                                // declare the character that marks the end of a serial transmission
+  char rc;                                                                              // temporary variable to hold the last received character
+  DOSerial.write(command);
+  DOSerial.flush();
+  while (DOSerial.available() > 0 && newData == false && emptyBuffer == true) {        // only read serial data if the buffer was emptied before and it's new data
+    delay(2);                                                                        
+    rc = DOSerial.read();
+    if (rc != endMarker) {
+      receivedChars[ndx] = rc;                                                        // store the latest character in character array
+      ndx++;
+      if (ndx >= numChars) {                                                          // make sure that array size is not exceeded
+        ndx = numChars - 1;
+      }
+    }
+    else {
+      receivedChars[ndx] = '\0';                                                      // terminate the string if the end marker is received
+      ndx = 0;
+      newData = true;                                                                 // new data has been received and is in the receivedChars buffer
+    }
   }
-  valueInt = atol(valueStr);                      // parse the character to integers - the air saturation values are given as [% air saturation x 1000], temperature as [°C x 1000]
-  return valueInt;
+  len = strlen(receivedChars)+1;                  // get length of received string + termination \0
+  len = len - 9;                                 // subtract the length of the echoed read command - I determined this by testing it, there might be a smarter way to do this
+  for (int k = 0; k < len; k++) {                 // store the last digits of string in new character array valueStr, starting at and including position 10. This is necessary as
+    valueStr[k] = receivedChars[(9 + k)];        // the sensor echoes the readout command, e.g. "REA1 3 4" before the air saturation values
+  }
+  DOInt = atol(valueStr);                      // parse the character to integers - the air saturation values are given as [% air saturation x 1000], temperature as [°C x 1000]
+  return DOInt;
 }
+
 
 //# Send air saturation readings to serial monitor and LCD (sets newData to false) #
 void showNewData() {
-  if (newData == true && emptyBuffer == true) {
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    DateTime now;
-    now = RTC.now();  
-    Serial.print(now.year(), DEC);
-    Serial.print('/');
-    Serial.print(now.month(), DEC);
-    Serial.print('/');
-    Serial.print(now.day(), DEC);
-    Serial.print(" - ");
-    Serial.print(now.hour(), DEC);
-    Serial.print(':');
-    Serial.print(now.minute(), DEC);
-    Serial.print(':');
-    Serial.print(now.second(), DEC);
-    Serial.println();
-    for (int i = 0; i < 2; i++){
-      Serial.print(tempID[i]);
-      Serial.print(": ");
-      Serial.print(tempFloat[i]);
-      Serial.println("°C ");
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  DateTime now;
+  now = RTC.now();  
+  for (int i = 0; i < (channelNumber); i++) {
+    if (i == 4) {                                     
+      lcd.setCursor(0, 1);                          // break line on LCD display when the 5th DO value is reached
     }
-    for (int i = 0; i < (channelNumber); i++) {
-      if (i == 4) {                                     
-        lcd.setCursor(0, 1);                          // break line on LCD display when the 5th DO value is reached
-      }
-      airSatLCD = int(lround(airSatFloat[i]));
-      lcd.print(airSatLCD);
-      lcd.print(" ");
-      Serial.print(tankID[i]);
-      Serial.print(": ");
-      Serial.print(airSatFloat[i]);
-      Serial.println("% air saturation");
-    }
-    newData = false;
+    airSatLCD = int(lround(airSatFloat[i]));
+    lcd.print(airSatLCD);
+    lcd.print(" ");
   }
 }
 
 //# Check if air saturations are below the security threshold #
 void DOCheck() {
-  for (int i = 0; i < channelNumber; i++){
-    if (airSatFloat[i] < lowDOThreshold){
+  for (int k = 0; k < channelNumber; k++){
+    if (airSatFloat[k] < lowDOThreshold){
       lowDO = true;
-      lowDOValue = airSatFloat[i];
+      lowDOValue = airSatFloat[k];
+      strcpy(lowDOTank, tankID[k]);
     }
   }
 }
@@ -383,7 +331,11 @@ void toggleRelay() {
 //### Log dissolved oxygen measurements to SD card ###
 void writeToSD() {
   if (!SD.exists(filename)) {
-    Serial.println("error: can't read SD");
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("error!");
+    lcd.setCursor(0, 1);
+    lcd.print("can't read SD");
     while (1);
   }
   else {
@@ -404,11 +356,9 @@ void writeToSD() {
     logfile.print(":");
     logfile.print(now.second(), DEC);
     logfile.print(";");
-    for (int i = 0; i < 2; i++){
+    for (int i = 0; i < channelNumber; i++){
       logfile.print(tempFloat[i]);
       logfile.print(";");
-    }
-    for (int i = 0; i < channelNumber; i++) {         // print air saturation measurements for each channel
       logfile.print(airSatFloat[i]);
       logfile.print(";");
     }
@@ -428,10 +378,10 @@ void(* resetFunc) (void) = 0;                         // function to restart the
 
 void setup() {
   Serial.begin(19200);
-  Serial.println("Automated oxygen control system booting ... ");
   Serial1.begin(19200);
   if (s2ChannelNumber > 0) {
     Serial2.begin(19200);
+    Serial3.begin(19200);
   }
     
 //# Set up one PID per channel #
@@ -468,7 +418,6 @@ void setup() {
   lcd.print("DO ctrl booting.");
   lcd.setCursor(0, 1);
   lcd.print("Empty buffer");
-  clearBuffer();
   delay(100);
 
 //# Declare output pins for relay operation #
@@ -488,7 +437,6 @@ void setup() {
   Wire.begin();                                   // initialize real time clock
   if (!RTC.begin()) {                             // check if RTC is initialized
     lcd.setCursor(0, 1);
-    Serial.println("RTC failed");
     lcd.print("RTC failed");
     while(1);
   }
@@ -497,6 +445,7 @@ void setup() {
   lcd.clear();
   DateTime now;
   now = RTC.now();                                // fetch time from RTC to display
+  lastday = now.day();
   lcd.print(now.year(), DEC);
   lcd.print('/');
   lcd.print(now.month(), DEC);
@@ -514,7 +463,6 @@ void setup() {
   lcd.clear();
   lcd.print("Check SD...");
   if (!SD.begin(chipSelect)) {                    // check if SD card is present and can be read
-    Serial.println("Card failed, or not present. Please insert SD card and reboot the system.");
     lcd.setCursor(0, 1);
     lcd.print("SD failed");
     while (1);
@@ -556,10 +504,6 @@ void setup() {
     logfile.print(interval / 1000);
     logfile.print(";Active channels:;");
     logfile.print(channelNumber);
-    logfile.print(";Temp Sensor 1:;");
-    logfile.print(tempID[0]);
-    logfile.print(";Temp Sensor 2:;");
-    logfile.println(tempID[1]);
     logfile.print("Air sat threshold [% air saturation]:;");
     for (int i = 0; i < (channelNumber); i++) {
       logfile.print(airSatThreshold[i]);
@@ -579,19 +523,16 @@ void setup() {
     }
     logfile.println(";");
     logfile.println(";");
-    logfile.print("Measurement;Date;Time;Temp.");                  // header row for measurements: Measurement, Date, Time, tankID1, tankID2,...
-    logfile.print(tempID[0]);
-    logfile.print(";Temp.");
-    logfile.print(tempID[1]);
-    logfile.print(";");
+    logfile.print("Measurement;Date;Time;");                  // header row for measurements: Measurement, Date, Time, tankID1, tankID2,...
     for (int i = 0; i < (channelNumber); i++) {
       logfile.print(tankID[i]);
-      logfile.print(";");
+      logfile.print("_temp;");
+      logfile.print(tankID[i]);
+      logfile.print("_DO;");
     }
     logfile.println();
   }
   else if (!logfile) {                                        // check if logfile was created
-    Serial.println("error: couldn't create logfile");
     lcd.setCursor(0, 1);
     lcd.print(".csv failed");
     while (1);                                                // do nothing
@@ -599,9 +540,6 @@ void setup() {
   delay(500);
 
 //# Display control settings 
-  Serial.print("Start of measurement cycles. Measurement interval set at ");
-  Serial.print(interval / 1000);
-  Serial.println(" seconds.");
   lcd.clear();
   lcd.print("Ready");
   lcd.setCursor(0, 1);
@@ -638,13 +576,14 @@ void setup() {
 //###               Congratulations, you made it to the main loop.                    ###
 //### I inserted delays between every subfunctions to ensure their completion before  ###
 //### the program moves to the next step. Some of these are crucial as the sensor     ###
-//### needs time to complete measurements. Also with serial communication, we want to ###
-//### make sure that everything has been completely sent and received.                ###
+//### needs time to complete measurements.                                            ###
 //#######################################################################################
 
 void loop() {
   startTime = millis();                                       // start timer of loop
-  if (millis() >= 86400000){
+  DateTime now;
+  curday = now.day();
+  if (curday != lastday){                                     // system resets every day -> creates a new logfile for every day
     lcd.clear();
     lcd.print("Init. reset");
     delay(10000);                                             // long delay to upload a new sketch in case of reset loop
@@ -652,82 +591,62 @@ void loop() {
   }
   for (int i = 0; i < channelNumber; i++) {                   // loop that iterates through every channel
     airSatSum = 0;                                            // reset summing variable for measurements
-    valueInt = 0;                                             // reset value variable
+    DOInt = 0;                                             // reset value variable
+    tempInt = 0;
     receivedChars[0] = (char)0;                               // empty char arrays
     bufferChars[0] = (char)0;                                   
     if (i < s1ChannelNumber) {                                // switch sensor based on measurement channel
       activeSensor = 1;
+      HardwareSerial &tempSerial = Serial;
+      HardwareSerial &DOSerial = Serial1;
     }
     else if (i == s1ChannelNumber) {
       activeSensor = 2;
+      HardwareSerial &tempSerial = Serial2;
+      HardwareSerial &DOSerial = Serial3;
     }  
     DateTime now;
     now = RTC.now();  
     delay(100); 
     activeChannel = channelArray[i];                          // declare channel to be measured for serial commands
-    sprintf(toggleMeasString, "SEQ %d", activeChannel);       // insert channel in measurement command
-    sprintf(toggleDORead, "REA %d 3 4", activeChannel);       // insert channel in readout command
+    sprintf(DOMeasCom, "MSR%d\r", activeChannel);             // insert channel in measurement command
+    sprintf(TempMeasCom, "TMP%d\r", activeChannel);           // insert channel in measurement command
+    sprintf(DOReadCom, "REA%d 3 4\r", activeChannel);         // insert channel in readout command
+    sprintf(TempReadCom, "REA%d 3 1\r", activeChannel);       // insert channel in readout command
     for (int j = 0; j < samples; j++) {                       // oversampling loop 
-      toggleMeasurement(toggleMeasString);
-      delay(1000);                                            // delay to allow the sensor to complete measurement
-      clearBuffer();
-      delay(100);
-      if (activeChannel == 1){
-        toggleRead(toggleTempRead);
-        delay(300);
-        receiveData();
-        if (strncmp(toggleTempRead, receivedChars, 9) == 0){  // compare first 9 characters of incoming string with sent string
-          comCheck = true;
-        }
-        if (comCheck == true){
-          extractValue();
-          tempFloat[activeSensor-1] = valueInt / 1000.00;
-          newData = false;
-        } 
-        else if (comCheck == false){                          // reboot system if communication error occurs
-          DateTime now;
-          now = RTC.now();  
-          Serial.print(now.year(), DEC);
-          Serial.print('/');
-          Serial.print(now.month(), DEC);
-          Serial.print('/');
-          Serial.print(now.day(), DEC);
-          Serial.print(" - ");
-          Serial.print(now.hour(), DEC);
-          Serial.print(':');
-          Serial.print(now.minute(), DEC);
-          Serial.print(':');
-          Serial.print(now.second(), DEC);
-          Serial.println();
-          Serial.println("Communication error!");
-          resetFunc();
-        }
+      toggleTempMeasurement(TempMeasCom);
+      if (strncmp(TempMeasCom, receivedChars, 4) == 0){       // compare first 4 characters of incoming string with sent string
+        sprintf(TempWriteCom, "WRT%d 0 0 %d\r", activeChannel, tempInt);
+        DOSerial.write(TempWriteCom);
+        DOSerial.flush();
+        tempFloat[i] = tempInt / (samples * 1000.00);
+      } 
+      else {                          // reboot system if communication error occurs
+        resetFunc();
       }
-      toggleRead(toggleDORead);
-      delay(300);
-      receiveData();
-      if (strncmp(toggleDORead, receivedChars, 9) == 0){
-        comCheck = true;
+      receivedChars[0] = (char)0;
+      toggleDOMeasurement(DOMeasCom);
+      delay(400);
+      receiveDOData(DOReadCom);
+      if (strncmp(DOReadCom, receivedChars, 9) == 0){
+        airSatSum = airSatSum + DOInt;                            // sum up air saturation readings for consecutive samples
       }
-      if (comCheck == true){
-        extractValue();
-        delay(100);
-        airSatSum = airSatSum + valueInt;                     // sum up air saturation readings for consecutive samples
+      else {                                                      // reboot system if communication error occurs
+        resetFunc();
       }
     }
     airSatFloat[i] = airSatSum / (samples * 1000.00);         // create floating point number for logging, display, etc. Results in 0 if there's a communication error
   }
-  if (comCheck == true){
-    showNewData();                                            // display measurement on LCD
+  if (newData == true && emptyBuffer == true) {
+    showNewData();                                              // display measurement on LCD
     delay(100);
-    writeToSD();                                              // log to SD card
+    writeToSD();                                                // log to SD card
     delay(100);
-    DOCheck();                                                // check if low DO threshold is crossed
+    DOCheck();                                                  // check if low DO threshold is crossed
     if (lowDO == true){
-      Serial.print("Program halt: low DO! Measured value: "); // halt program for 20 min to let DO value recover... This could be better used to generate an alarm output or activate air inflow
-      Serial.println(lowDOValue);
       lcd.clear();
-      lcd.print("low DO!");
+      lcd.print("low DO at ");
+      lcd.print(lowDOTank);
       lcd.setCursor(0,1);
       lcd.print("measured: ");
       lcd.print(lowDOValue);
