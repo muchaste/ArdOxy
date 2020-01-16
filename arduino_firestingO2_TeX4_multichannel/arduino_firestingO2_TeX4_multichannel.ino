@@ -1,9 +1,8 @@
 //#######################################################################################
 //###           ArdOxy - Arduino based dissolved oxygen control system                ###
-//### Due to my limited coding skills, this sketch is partially hardcoded to measure  ###
-//### 8 dissolved oxygen channels via 2 FireStingO2 sensors. If you want to use fewer ###
-//### channels/sensors, you have to adapt this sketch accordingly. Especially the     ###
-//### relay PID control setup is hardcoded.                                           ###
+//### This sketch lets you to measure 8 dissolved oxygen and temperature channels via ###
+//### 2 FireStingO2 sensors 2 TeX4 temperature extensions. If you want to use fewer   ###
+//### channels/sensors, you have to adapt this sketch accordingly.                    ###
 //### Core hardware components:                                                       ###
 //### Arduino MEGA 2560 (1x), Adafruit Data logging shield (ID 1141),                 ###
 //### Adafruit LCD shield (ID 714), SainSmart 8 channel relay module (101-70-102),    ###
@@ -31,19 +30,18 @@
 //### Thus most arrays have a length of 8. Adapt the following lines to your use.     ###
 //#######################################################################################
 
-const int s1ChannelNumber = 4;                                                          // number of used channels on DO and temperature sensor 1
-const int s2ChannelNumber = 4;                                                          // number of used channels on DO and temperature sensor 2
-const int channelNumber = s1ChannelNumber + s2ChannelNumber;                            // total number of measurement channels
-long int samples = 1;                                                                   // number of measurements that are averaged to one air saturation value 
-                                                                                        // to reduce sensor fluctuation (oversampling)
-char tankID[8][6] = {"B4", "C3", "B1", "C8", "E7", "E4", "E1", "D6"};                   // IDs assigned to the channels in the order of the channelArray
-//char tempID[2][6] = {"B4", "E4"};                                                       // tanks where the temperature sensors are placed (1 per sensor)
-long interval = 30 * 1000UL;                                                            // measurement and control interval in second
-double airSatThreshold[8] = {100.0, 100.0, 100.0, 15.0, 100.0, 15.0, 15.0, 15.0};       // air saturation threshold including first decimal                            
-const int chipSelect = 10;                                                              // chip pin for SD card (UNO: 4; MEGA: 53, Adafruit shield: 10)
-double lowDOThreshold = 7.0;                                                            // threshold for low oxygen that causes the program to do something
-int channelArray[channelNumber] = {1, 2, 3, 4, 1, 2, 3, 4};                             // measurement channels from firesting devices 1 and 2 in that order
-
+const int sensorNumber = 2;                                                                     // number of sensors - FireStingO2 and TeX4 are treated as one sensor (1 = 1 of each)
+const int s1ChannelNumber = 4;                                                                  // number of used channels on DO and temperature sensor 1
+const int s2ChannelNumber = 4;                                                                  // number of used channels on DO and temperature sensor 2
+const int channelNumber = s1ChannelNumber + s2ChannelNumber;                                    // total number of measurement channels
+long int samples = 1;                                                                           // number of measurements that are averaged to one air saturation value 
+                                                                                                // to reduce sensor fluctuation (oversampling)
+char tankID[channelNumber][6] = {"B4", "C3", "B1", "C8", "E7", "E4", "E1", "D6"};               // IDs assigned to the channels in the order of the channelArray
+long interval = 30 * 1000UL;                                                                    // measurement and control interval in second
+double airSatThreshold[channelNumber] = {100.0, 100.0, 100.0, 15.0, 100.0, 15.0, 15.0, 15.0};   // air saturation threshold including first decimal                            
+const int chipSelect = 10;                                                                      // chip pin for SD card (UNO: 4; MEGA: 53, Adafruit shield: 10)
+double lowDOThreshold = 7.0;                                                                    // threshold for low oxygen that causes the program to do something
+int channelArray[channelNumber] = {1, 2, 3, 4, 1, 2, 3, 4};                                     // measurement channels from firesting devices 1 and 2 in that order
 
 
 //#######################################################################################
@@ -51,21 +49,22 @@ int channelArray[channelNumber] = {1, 2, 3, 4, 1, 2, 3, 4};                     
 //### The arduino operates solenoid valves through a relay module to bubble N2 into   ###
 //### the tanks. It calculates a time interval using the PIDlibrary (by Brett         ###
 //### Beauregard). TEST THE SETTINGS FOR PID CONTROL BEFORE YOU USE THIS SYSTEM!!     ###
-//### If you're not sure, replace the PID control with a simpler solution      ###
+//### If you're not sure, replace the PID control with a simpler solution             ###
 //### (e.g. bubble N2 for 10 sec if there's a large oxygen difference etc.).          ###
+//### To control for stress due to bubbling, compressed air is bubbled into control   ###
+//### tanks.                                                                          ###
 //#######################################################################################
 
-int relayPin[2][8] = {                              // pins for relay operation ***ADAPT THIS TO FIT YOUR WIRING***
-  {22, 24, 26, 28, 30, 32, 34, 36},                 // outputs to experimental tanks
-  {23, 25, 27, 29, 31, 33, 35, 37}                  // output copies to control tanks that receive compressed air
+int relayPin[2][channelNumber] = {                              // pins for relay operation ***ADAPT THIS TO FIT YOUR WIRING***
+  {22, 24, 26, 28, 30, 32, 34, 36},                             // outputs to experimental tanks
+  {23, 25, 27, 29, 31, 33, 35, 37}                              // output copies to control tanks that receive compressed air
 };     
-double Kp[8] = {10, 10, 10, 10, 10, 10, 10, 10};    // coefficient for proportional control
-double Ki[8] = {1, 1, 1, 1, 1, 1, 1, 1};            // coefficient for integrative control
-double Kd[8] = {1, 1, 1, 1, 1, 1, 1, 1};            // coefficient for differential control
-long int WindowSize = 75;                           // The PID will calculate an output between 0 and 75.
-                                                    // This will be multiplied by 200 to ensure a minimum opening time of 200 msec. 
-                                                    // E.g. output = 1 -> opening time 200 msec; output 50 -> opening time 10,000 msec
-
+double Kp[channelNumber] = {10, 10, 10, 10, 10, 10, 10, 10};    // coefficient for proportional control
+double Ki[channelNumber] = {1, 1, 1, 1, 1, 1, 1, 1};            // coefficient for integrative control
+double Kd[channelNumber] = {1, 1, 1, 1, 1, 1, 1, 1};            // coefficient for differential control
+long int WindowSize = 75;                                       // The PID will calculate an output between 0 and 75.
+                                                                // This will be multiplied by 200 to ensure a minimum opening time of 200 msec. 
+                                                                // E.g. output = 1 -> opening time 200 msec; output 50 -> opening time 10,000 msec
 
 
 //#######################################################################################
@@ -77,20 +76,18 @@ long int WindowSize = 75;                           // The PID will calculate an
 
 //# Switches and logical operators #
 boolean lowDO = false;                        // boolean for low oxygen threshold
-int activeSensor = 1;                         // index to switch between sensors (if s2ChannelNumber = 0 it stays at 1)
 int activeChannel = 1;                        // measurement channel
-HardwareSerial &tempSerial = Serial;
-HardwareSerial &DOSerial = Serial1;
+HardwareSerial &tempSerial = Serial;          // variable to switch serial port for temperature sensor
+HardwareSerial &DOSerial = Serial1;           // variable to switch serial port for DO sensor
 boolean newData = false;                      // true if serial data was received from sensors
 boolean emptyBuffer = false;                  // true if buffer for serial data is empty
-boolean comCheck = false;                     // true if echoed command matches sent command
 
 //# Measurement timing #
 unsigned long startTime;                      // time taken at start of loop
 unsigned long endTime;                        // time taken at end of loop
 unsigned long elapsed;                        // elapsed time between end- and start-time
-int curday;
-int lastday;
+int curday;                                   // int of current day (date)
+int lastday;                                  // int of day during last measurement - to detect date change and reboot the system every 24h
 
 //# Logging and SD card #
 RTC_PCF8523 RTC;                              // real time clock
@@ -101,13 +98,13 @@ int n = 0;                                    // row index for logging
 
 //# Oxygen optode #
 char DOMeasCom[7] = "MSR1\r";                 // measurement commmand that is sent to sensor during void toggleMeasurement(). Number indicates measurement channel
-char TempMeasCom[7] = "TMP1\r";               // measurement commmand that is sent to sensor during void toggleMeasurement(). Number indicates measurement channel
+char tempMeasCom[7] = "TMP1\r";               // measurement commmand that is sent to sensor during void toggleMeasurement(). Number indicates measurement channel
 char DOReadCom[11] = "REA1 3 4\r";            // template for DO-read command that is sent to sensor during void toggleRead() (length = 10 because of /0 string terminator)
-char TempReadCom[11] = "REA1 3 1\r";          // temperature read command
+char tempReadCom[11] = "REA1 3 1\r";          // temperature read command
 char TempWriteCom[17] = "WRT1 0 0 20000\r";   // temperature write command to write measured temperature in the same channel of DO sensor for temperature compensation
 const byte numChars = 30;                     // array length for incoming serial data (longer than needed)
 char receivedChars[numChars];                 // array to store the incoming serial data (used in receiveData() )
-char bufferChars[numChars];                   // array to store incoming data that is not needed (used in clearBuffer() )
+char bufferChars[numChars];                   // array to store incoming data that is not needed (used to clear buffer() )
 int len;                                      // length of actually received serial data
 char valueStr[20];                            // array to hold only readings from receivedChars (longer than needed)
 long DOInt;                                   // variable for readings that are parsed from valueStr
@@ -119,8 +116,8 @@ char lowDOTank[6];                            // array for tank name in which lo
 double tempFloat[channelNumber];              // array to store temperature readings for logging
 
 //# Relay operation #
-double relayArray[4][channelNumber];                      // array with relay pin and assigned output values
-double Output[8];                             // holds output that was calculated by PID library
+double relayArray[4][channelNumber];          // array with relay pin and assigned output values
+double Output[channelNumber];                 // holds output that was calculated by PID library
 
 //Hardcoded PID setup - there's probably a way to set up only those that are needed but I can only think of a long chain of if-and conditions
 PID relay1PID(&airSatFloat[0], &Output[0], &airSatThreshold[0], Kp[0], Ki[0], Kd[0], REVERSE);    
@@ -146,7 +143,6 @@ int airSatLCD = 0;                                      // integer to display ro
 //#######################################################################################
 
 //# Send the commands to toggle measurement to and readout values from the FireStingO2 and TeX4 devices via Serial #
-//# I copied these functions to switch serial ports based on the active sensor. There's probably a better way to do this
 int toggleTempMeasurement(char command[7]) {
   static byte ndx = 0;
   char endMarker = '\r';
@@ -242,18 +238,17 @@ int receiveDOData(char command[11]) {                                           
   return DOInt;
 }
 
-
-//# Send air saturation readings to serial monitor and LCD (sets newData to false) #
+//# Send air saturation readings to serial monitor and LCD #
 void showNewData() {
   lcd.clear();
   lcd.setCursor(0, 0);
   DateTime now;
   now = RTC.now();  
-  for (int i = 0; i < (channelNumber); i++) {
-    if (i == 4) {                                     
+  for (int k = 0; k < (channelNumber); k++) {
+    if (k == 4) {                                     
       lcd.setCursor(0, 1);                          // break line on LCD display when the 5th DO value is reached
     }
-    airSatLCD = int(lround(airSatFloat[i]));
+    airSatLCD = int(lround(airSatFloat[k]));
     lcd.print(airSatLCD);
     lcd.print(" ");
   }
@@ -270,7 +265,7 @@ void DOCheck() {
   }
 }
 
-//### Toggle relay based on measured airSat values ###
+//# Toggle relay based on measured airSat values #
 void toggleRelay() {
   relay1PID.Compute();                                  // compute the output (output * 200 = opening time) based on the input (air saturation) and threshold
   relay2PID.Compute();
@@ -280,62 +275,62 @@ void toggleRelay() {
   relay6PID.Compute();
   relay7PID.Compute();
   relay8PID.Compute();
-  for (int i = 0; i < channelNumber; i++) {
-    relayArray[0][i] = relayPin[0][i];
-    relayArray[1][i] = relayPin[1][i];
-    relayArray[2][i] = double(int(Output[i])*200.00);   // PID computes an output between 0 and 50, the multiplicator makes sure that the relay operation time is at least 200ms
-    relayArray[3][i] = airSatFloat[i];
+  for (int k = 0; k < channelNumber; k++) {
+    relayArray[0][k] = relayPin[0][k];
+    relayArray[1][k] = relayPin[1][k];
+    relayArray[2][k] = double(int(Output[k])*200.00);   // PID computes an output between 0 and 50, the multiplicator makes sure that the relay operation time is at least 200ms
+    relayArray[3][k] = airSatFloat[k];
   }
   double temp[4];                                       // temporary array to sort all channels with the smallest based on the computed output (lowest output first). 
                                                         // This is necessary as the valves are kept open using the delay()-function which halts all activity. 
                                                         // With 8 channels, opening one valve after the other is too time consuming. With the opening times sorted, all valves 
                                                         // can be opened at the same time and then closed one after another.
-  for (int i = 0; i < channelNumber - 1; i++) {         // sort array with lowest difference first
-    for (int j = i + 1; j < channelNumber; j++) {
-      if (relayArray[2][j] < relayArray[2][i]) {
-        temp[0] = relayArray[0][i];                     // store higer value + relayPin in temp array
-        temp[1] = relayArray[1][i];
-        temp[2] = relayArray[2][i];
-        temp[3] = relayArray[3][i];
-        relayArray[0][i] = relayArray[0][j];            // move lower value to position i
-        relayArray[1][i] = relayArray[1][j];
-        relayArray[2][i] = relayArray[2][j];
-        relayArray[3][i] = relayArray[3][j];
-        relayArray[0][j] = temp[0];                     // insert higher value at position j
-        relayArray[1][j] = temp[1];                     // now the values at i and j have switched places in the relayArray
-        relayArray[2][j] = temp[2];
-        relayArray[3][j] = temp[3];
+  for (int k = 0; k < channelNumber - 1; k++) {         // sort array with lowest difference first
+    for (int m = k + 1; m < channelNumber; m++) {
+      if (relayArray[2][m] < relayArray[2][k]) {
+        temp[0] = relayArray[0][k];                     // store higer value + relayPin in temp array
+        temp[1] = relayArray[1][k];
+        temp[2] = relayArray[2][k];
+        temp[3] = relayArray[3][k];
+        relayArray[0][k] = relayArray[0][m];            // move lower value to position i
+        relayArray[1][k] = relayArray[1][m];
+        relayArray[2][k] = relayArray[2][m];
+        relayArray[3][k] = relayArray[3][m];
+        relayArray[0][m] = temp[0];                     // insert higher value at position j
+        relayArray[1][m] = temp[1];                     // now the values at i and j have switched places in the relayArray
+        relayArray[2][m] = temp[2];
+        relayArray[3][m] = temp[3];
       }
     }
   }
-  for (int i = 0; i < channelNumber; i++) {
-    if (relayArray[2][i] > 0){                              // skip the channels that don't have to be operated (output = 0.00)
-      for (int j = i; j < channelNumber; j++) {             // open all other valves
-        digitalWrite(relayArray[0][j], LOW);
-        digitalWrite(relayArray[1][j], LOW);
+  for (int k = 0; k < channelNumber; k++) {
+    if (relayArray[2][k] > 0){                              // skip the channels that don't have to be operated (output = 0.00)
+      for (int m = k; m < channelNumber; m++) {             // open all other valves
+        digitalWrite(relayArray[0][m], LOW);
+        digitalWrite(relayArray[1][m], LOW);
       }
-      if (i == 0) {                                         // close the valve with the lowest output first
-        delay(relayArray[2][i]);
-        digitalWrite(relayArray[0][i], HIGH);
-        digitalWrite(relayArray[1][i], HIGH);
+      if (k == 0) {                                         // close the valve with the lowest output first
+        delay(relayArray[2][k]);
+        digitalWrite(relayArray[0][k], HIGH);
+        digitalWrite(relayArray[1][k], HIGH);
       }
       else {
-        delay(relayArray[2][i] - relayArray[2][i - 1]);     // keep the other valves open based on the difference of the output value
-        digitalWrite(relayArray[0][i], HIGH);               // close the valve
-        digitalWrite(relayArray[1][i], HIGH);
+        delay(relayArray[2][k] - relayArray[2][k - 1]);     // keep the other valves open based on the difference of the output value
+        digitalWrite(relayArray[0][k], HIGH);               // close the valve
+        digitalWrite(relayArray[1][k], HIGH);
       }
     }
   }
 }
 
-//### Log dissolved oxygen measurements to SD card ###
+//# Log dissolved oxygen measurements to SD card #
 void writeToSD() {
   if (!SD.exists(filename)) {
     lcd.clear();
     lcd.setCursor(0, 0);
     lcd.print("error!");
     lcd.setCursor(0, 1);
-    lcd.print("can't read SD");
+    lcd.print("no SD");
     while (1);
   }
   else {
@@ -356,10 +351,10 @@ void writeToSD() {
     logfile.print(":");
     logfile.print(now.second(), DEC);
     logfile.print(";");
-    for (int i = 0; i < channelNumber; i++){
-      logfile.print(tempFloat[i]);
+    for (int k = 0; k < channelNumber; k++){
+      logfile.print(tempFloat[k]);
       logfile.print(";");
-      logfile.print(airSatFloat[i]);
+      logfile.print(airSatFloat[k]);
       logfile.print(";");
     }
     logfile.println();
@@ -367,6 +362,82 @@ void writeToSD() {
   }
 }
 
+//# Clear all serial buffers (modified from http://forum.arduino.cc/index.php?topic=396450) #
+void clearAllBuffers() {                                                                    // similar to receiveData(), clears serial buffer from echoes
+  static byte ndx = 0;
+  char endMarker = '\r';
+  char rc;
+  emptyBuffer = false;
+  while (Serial.available() > 0 && emptyBuffer == false) {
+    delay(2);
+    rc = Serial.read();
+    if (rc != endMarker) {
+      bufferChars[ndx] = rc;
+      ndx++;
+      if (ndx >= numChars) {
+        ndx = numChars - 1;
+      }
+    }
+    else {
+      bufferChars[ndx] = '\0';  // terminate the string
+      ndx = 0;
+      emptyBuffer = true;
+    }
+  }
+  emptyBuffer = false;
+  while (Serial1.available() > 0 && emptyBuffer == false) {
+    delay(2);
+    rc = Serial1.read();
+    if (rc != endMarker) {
+      bufferChars[ndx] = rc;
+      ndx++;
+      if (ndx >= numChars) {
+        ndx = numChars - 1;
+      }
+    }
+    else {
+      bufferChars[ndx] = '\0';  // terminate the string
+      ndx = 0;
+      emptyBuffer = true;
+    }
+  }
+  emptyBuffer = false;
+  while (Serial2.available() > 0 && emptyBuffer == false) {
+    delay(2);
+    rc = Serial2.read();
+    if (rc != endMarker) {
+      bufferChars[ndx] = rc;
+      ndx++;
+      if (ndx >= numChars) {
+        ndx = numChars - 1;
+      }
+    }
+    else {
+      bufferChars[ndx] = '\0';  // terminate the string
+      ndx = 0;
+      emptyBuffer = true;
+    }
+  }
+  emptyBuffer = false;
+  while (Serial3.available() > 0 && emptyBuffer == false) {
+    delay(2);
+    rc = Serial3.read();
+    if (rc != endMarker) {
+      bufferChars[ndx] = rc;
+      ndx++;
+      if (ndx >= numChars) {
+        ndx = numChars - 1;
+      }
+    }
+    else {
+      bufferChars[ndx] = '\0';  // terminate the string
+      ndx = 0;
+      emptyBuffer = true;
+    }
+  }
+}
+
+//# Reboot the Arduino #
 void(* resetFunc) (void) = 0;                         // function to restart the Arduino when a communication error occurs
 
 
@@ -379,7 +450,7 @@ void(* resetFunc) (void) = 0;                         // function to restart the
 void setup() {
   Serial.begin(19200);
   Serial1.begin(19200);
-  if (s2ChannelNumber > 0) {
+  if (sensorNumber == 2) {
     Serial2.begin(19200);
     Serial3.begin(19200);
   }
@@ -418,6 +489,7 @@ void setup() {
   lcd.print("DO ctrl booting.");
   lcd.setCursor(0, 1);
   lcd.print("Empty buffer");
+  clearAllBuffers();
   delay(100);
 
 //# Declare output pins for relay operation #
@@ -582,6 +654,7 @@ void setup() {
 void loop() {
   startTime = millis();                                       // start timer of loop
   DateTime now;
+  now = RTC.now();  
   curday = now.day();
   if (curday != lastday){                                     // system resets every day -> creates a new logfile for every day
     lcd.clear();
@@ -596,26 +669,21 @@ void loop() {
     receivedChars[0] = (char)0;                               // empty char arrays
     bufferChars[0] = (char)0;                                   
     if (i < s1ChannelNumber) {                                // switch sensor based on measurement channel
-      activeSensor = 1;
       HardwareSerial &tempSerial = Serial;
       HardwareSerial &DOSerial = Serial1;
     }
     else if (i == s1ChannelNumber) {
-      activeSensor = 2;
       HardwareSerial &tempSerial = Serial2;
       HardwareSerial &DOSerial = Serial3;
     }  
-    DateTime now;
-    now = RTC.now();  
-    delay(100); 
     activeChannel = channelArray[i];                          // declare channel to be measured for serial commands
     sprintf(DOMeasCom, "MSR%d\r", activeChannel);             // insert channel in measurement command
-    sprintf(TempMeasCom, "TMP%d\r", activeChannel);           // insert channel in measurement command
+    sprintf(tempMeasCom, "TMP%d\r", activeChannel);           // insert channel in measurement command
     sprintf(DOReadCom, "REA%d 3 4\r", activeChannel);         // insert channel in readout command
-    sprintf(TempReadCom, "REA%d 3 1\r", activeChannel);       // insert channel in readout command
+    sprintf(tempReadCom, "REA%d 3 1\r", activeChannel);       // insert channel in readout command
     for (int j = 0; j < samples; j++) {                       // oversampling loop 
-      toggleTempMeasurement(TempMeasCom);
-      if (strncmp(TempMeasCom, receivedChars, 4) == 0){       // compare first 4 characters of incoming string with sent string
+      toggleTempMeasurement(tempMeasCom);
+      if (strncmp(tempMeasCom, receivedChars, 4) == 0){       // compare first 4 characters of incoming string with sent string
         sprintf(TempWriteCom, "WRT%d 0 0 %d\r", activeChannel, tempInt);
         DOSerial.write(TempWriteCom);
         DOSerial.flush();
