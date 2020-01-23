@@ -3,7 +3,7 @@ An Arduino controlled system for long term automated oxygen control in fish tank
 
 ## Table of Contents
 * [Background](#background)
-* [Basic Setup](#basic-setup
+* [Basic Setup](#basic-setup)
 
 ## Background
 Oxygen is a limited but essential resource for aquatic life. In many ecosystems, dissolved oxygen fluctuates and can reach critically low concentrations - a condition called hypoxia. Fish that have evolved under the pressure of aquatic hypoxia have developed many adaptations, ranging from behavioral strategies and morphology (-> gills!) to biochemical and physiological adjustments. These adaptations secure their survival under hypoxic conditions. For the research of these adaptations, it is advantageous if one can reproduce long term hypoxia (as it occurs naturally) in the lab.
