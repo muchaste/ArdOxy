@@ -44,7 +44,7 @@ If you want a more sophisticated system, I suggest you check out *servo-assisted
 My valves run on 24V, that means, they get voltage, they open. This can be easily controlled via relais that are controlled by the arduino - done!
 
 Okay, enough talk, here's a basic sketch of the most basic setup and its components:
-![Overview](./images/overview.png)
+![Overview](./images/simple_overview.png)
 
 Here's a list of the components of the last tested configuration for an 8-channel system:
 * 1 Arduino MEGA 2560
