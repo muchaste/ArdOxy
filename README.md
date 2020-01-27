@@ -24,6 +24,7 @@ Here are the minimal requirements that I wanted to fulfill with this system:
 
 ## Basic Setup
 *All components here are listed for reproduction purposes and not as advertisement!*
+
 As this system is intended for long-term use, it relies on optical oxygen sensors. Optical sensors constitute the most expensive component - they are much more expensive than the relatively cheap electrochemical oxygen electrodes (such as [silver-platinum electrodes](https://en.wikipedia.org/wiki/Clark_electrode)). However, electrochemical sensors have a strong drift due to the deposition of salts on the anode and are thus not suited for long-term use without regularly being re-calibrated.
 After a ton of research (there are many manufacturers of optical oxygen sensors out there), I decided for the FireStingO2 sensor with a 4-channel temperature extensions (TeX4) from PyroScience for the following reasons:
 
@@ -63,4 +64,5 @@ Here's a list of the components of the last tested configuration for an 8-channe
 * A lot of cable, gas tubes and push-in fittings
 
 ## The Code
-TBA
+You can find all the arduino sketches for this system here, in this repo. I tried to comment the code as comprehensively as possible. However, some operating principles and core components of the code will be addressed here in a bit more detail.
+
