@@ -64,5 +64,8 @@ Here's a list of the components of the last tested configuration for an 8-channe
 * A lot of cable, gas tubes and push-in fittings
 
 ## The Code
-You can find all the arduino sketches for this system here, in this repo. I tried to comment the code as comprehensively as possible. However, some operating principles and core components of the code will be addressed here in a bit more detail.
+You can find all the arduino sketches for this system here, in this repo. I tried to comment the code as comprehensively as possible. However, some operating principles and core components of the code will be addressed here in a bit more detail *(note: to edit and upload the sketches to an arduino, you need the [arduino IDE](https://www.arduino.cc/en/main/software))*.
+
+### General Structure
+The sketch is organized in a classical structure in which first of all, the global variables - values and variables that all functions have access to - are defined. Following are the individual subfunctions that run while the system operates (e.g. functions to send measurement commands to the sensors, print oxygen values on the display or create the control output for the valves). During 'void Setup()', everything that the system needs to boot is defined - the logfile is created and the serial ports and pins are activated.
 
