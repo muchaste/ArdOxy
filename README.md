@@ -2,6 +2,8 @@
 An Arduino controlled system for long term automated oxygen control in fish tanks with FireStingO2 optical oxygen sensors.
 *This project is currently under development - the original sketch has been tested in a 8-week long-term test (see below).*
 
+This project description is aimed at readers from all backgrounds. However, it cannot provide a complete introduction into coding for arduino and the basic functioning principles behind all components (e.g. serial communication). For this, I advise you to find some of the excellent tutorials and wikis that are out there (link collection coming soon...).
+
 ## Table of Contents
 * [Background](#background)
 * [Basic Setup](#basic-setup)
@@ -64,8 +66,14 @@ Here's a list of the components of the last tested configuration for an 8-channe
 * A lot of cable, gas tubes and push-in fittings
 
 ## The Code
-You can find all the arduino sketches for this system here, in this repo. I tried to comment the code as comprehensively as possible. However, some operating principles and core components of the code will be addressed here in a bit more detail *(note: to edit and upload the sketches to an arduino, you need the [arduino IDE](https://www.arduino.cc/en/main/software))*.
+You can find all the arduino sketches for this system here, in this repo. I commented the code as comprehensively as possible. However, some operating principles and core components of the code will be addressed here in a bit more detail.
+
+*To edit and upload the sketches to an arduino, you need the [arduino IDE](https://www.arduino.cc/en/main/software)*.
 
 ### General Structure
-The sketch is organized in a classical structure in which first of all, the global variables - values and variables that all functions have access to - are defined. Following are the individual subfunctions that run while the system operates (e.g. functions to send measurement commands to the sensors, print oxygen values on the display or create the control output for the valves). During 'void Setup()', everything that the system needs to boot is defined - the logfile is created and the serial ports and pins are activated.
+The sketch is organized in a "classical" structure:
+1. In the first part, the preamble, the global variables are defined. "Global" are values and variables that all functions have access to. 
+2. Next, the individual subfunctions are defined that execute the different tasks (e.g. send measurement command to the sensor, print oxygen values on the display or create the control output for the valves). These are not necessary, I could write all the code just in the main `loop` (see below). However, it makes everything clearer and easier to understand if large chunks of code are "hidden" in these subfunctions and we only have to call them by their name later.
+3. Next comes `void Setup()`. This section runs once when the arduino boots. Everything that the system needs to boot is defined here - the logfile is created and the serial ports and pins are activated.
+4. Finally, the main `loop`. Here, all the subfunctions are called in a periodical manner. That means, the arduino cycles through all the code/functions that are listed here and then starts right over. This is the basis for a continuous measurement and control of dissolved oxygen.
 
