@@ -1,8 +1,14 @@
 # ArdOxy - Beta
 An Arduino controlled system for long term automated oxygen control in fish tanks with FireStingO2 optical oxygen sensors.
-*This project is currently under development - the original sketch has been tested in a 8-week long-term test (see below).*
 
-This project description is aimed at readers from all backgrounds. However, it cannot provide a complete introduction into coding for arduino and the basic functioning principles behind all components (e.g. serial communication). For this, I advise you to find some of the excellent tutorials and wikis that are out there (link collection coming soon...).
+The purpose of this readme is to make this system as barier-free and reproducible as possible. Below, I will outline the functioning principles of this system and explain basics and details, both of its hardware and software components. So, if you're new to pneumatics and coding, I hope that this documentation provides useful information for you. 
+
+However, I would strongly recommend to anybody who is new to the field to start with a more simple project to learn the basics. You can find great, free tutorials and projects here:
+* [Arduino community tutorials](https://www.arduino.cc/en/Tutorial/HomePage)
+* [Tutorialspoint] (https://www.tutorialspoint.com/arduino/)
+
+## Project Status
+This project is currently under development. The original sketch has been tested in an 8-week long term experiment, the new sketches are untested so far.
 
 ## Table of Contents
 * [Background](#background)
@@ -70,10 +76,34 @@ You can find all the arduino sketches for this system here, in this repo. I comm
 
 *To edit and upload the sketches to an arduino, you need the [arduino IDE](https://www.arduino.cc/en/main/software)*.
 
-### General Structure
-The sketch is organized in a "classical" structure:
-1. In the first part, the preamble, the global variables are defined. "Global" are values and variables that all functions have access to. 
+For this documentation, I will refer to the original sketch that has been tested. The new versions are improvements of this original sketch and are similar in their basic structure. Let's have a look at it from top to bottom.
+
+### The Preamble
+In the preamble, the global variables are defined. "Global" are values and variables that all functions have access to. Here's an excerpt:
+`...
+#include <utility/Adafruit_MCP23017.h>
+#define WHITE 0x7                                     // LCD color code
+
+
+//#######################################################################################
+//###                              General settings                                   ###
+//### This program is intended to work with 8 channels for measurement and control.   ###
+//### Thus most arrays have a length of 8. Adapt the following lines to your use.     ###
+//#######################################################################################
+
+const int s1ChannelNumber = 4;                                                          // number of used channels on sensor 1
+const int s2ChannelNumber = 4;                                                          // number of used channels on sensor 2
+const int channelNumber = s1ChannelNumber + s2ChannelNumber;                            // total number of measurement channels
+long int samples = 1;                                                                   // number of measurements that are averaged to one air saturation value 
+                                                                                        // to reduce sensor fluctuation (oversampling)
+char tankID[8][6] = {"B4", "C3", "B1", "C8", "E7", "E4", "E1", "D6"};                   // IDs assigned to the channels in the order of the channelArray
+char tempID[2][6] = {"B4", "E4"};                                                       // tanks where the temperature sensors are placed (1 per sensor)
+long interval = 30 * 1000UL;                                                            // measurement and control interval in second
+...`
+
 2. Next, the individual subfunctions are defined that execute the different tasks (e.g. send measurement command to the sensor, print oxygen values on the display or create the control output for the valves). These are not necessary, I could write all the code just in the main `loop` (see below). However, it makes everything clearer and easier to understand if large chunks of code are "hidden" in these subfunctions and we only have to call them by their name later.
 3. Next comes `void Setup()`. This section runs once when the arduino boots. Everything that the system needs to boot is defined here - the logfile is created and the serial ports and pins are activated.
-4. Finally, the main `loop`. Here, all the subfunctions are called in a periodical manner. That means, the arduino cycles through all the code/functions that are listed here and then starts right over. This is the basis for a continuous measurement and control of dissolved oxygen.
+4. Finally, the main `loop`. The arduino will run everything that you write here over and over again - hence its name. Here are all the subfunctions called that are needed for measuring and controlling oxygen.
+
+### 
 
