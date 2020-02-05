@@ -80,7 +80,8 @@ For this documentation, I will refer to the original sketch that has been tested
 
 ### The Preamble
 In the preamble, the global variables are defined. "Global" are values and variables that all functions have access to. Here's an excerpt:
-`...
+```arduino
+...
 #include <utility/Adafruit_MCP23017.h>
 #define WHITE 0x7                                     // LCD color code
 
@@ -99,7 +100,8 @@ long int samples = 1;                                                           
 char tankID[8][6] = {"B4", "C3", "B1", "C8", "E7", "E4", "E1", "D6"};                   // IDs assigned to the channels in the order of the channelArray
 char tempID[2][6] = {"B4", "E4"};                                                       // tanks where the temperature sensors are placed (1 per sensor)
 long interval = 30 * 1000UL;                                                            // measurement and control interval in second
-...`
+...
+```
 
 2. Next, the individual subfunctions are defined that execute the different tasks (e.g. send measurement command to the sensor, print oxygen values on the display or create the control output for the valves). These are not necessary, I could write all the code just in the main `loop` (see below). However, it makes everything clearer and easier to understand if large chunks of code are "hidden" in these subfunctions and we only have to call them by their name later.
 3. Next comes `void Setup()`. This section runs once when the arduino boots. Everything that the system needs to boot is defined here - the logfile is created and the serial ports and pins are activated.
