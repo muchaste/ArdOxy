@@ -5,7 +5,7 @@ The purpose of this readme is to make this system as barier-free and reproducibl
 
 However, I would strongly recommend to anybody who is new to the field to start with a more simple project to learn the basics. You can find great, free tutorials and projects here:
 * [Arduino community tutorials](https://www.arduino.cc/en/Tutorial/HomePage)
-* [Tutorialspoint] (https://www.tutorialspoint.com/arduino/)
+* [Tutorialspoint](https://www.tutorialspoint.com/arduino/)
 
 ## Project Status
 This project is currently under development. The original sketch has been tested in an 8-week long term experiment, the new sketches are untested so far.
@@ -14,6 +14,10 @@ This project is currently under development. The original sketch has been tested
 * [Background](#background)
 * [Basic Setup](#basic-setup)
 * [The Code](#the-code)
+  * [The Preamble](#the-preamble)
+  * [The Subfunctions](#the-subfunctions)
+  * [Void Setup](#void-setup)
+  * [The Main Loop](#the-main-loop)
 
 ## Background
 Oxygen is a limited but essential resource for aquatic life. In many ecosystems, dissolved oxygen fluctuates and can reach critically low concentrations - a condition called hypoxia. Fish that have evolved under the pressure of aquatic hypoxia have developed many adaptations, ranging from behavioral strategies and morphology (-> gills!) to biochemical and physiological adjustments. These adaptations secure their survival under hypoxic conditions. For the research of these adaptations, it is advantageous if one can reproduce long term hypoxia (as it occurs naturally) in the lab.
@@ -80,7 +84,7 @@ For this documentation, I will refer to the original sketch that has been tested
 
 ### The Preamble
 In the preamble, the global variables are defined. "Global" are values and variables that all functions have access to. Here's an excerpt:
-```arduino
+```javascript
 ...
 #include <utility/Adafruit_MCP23017.h>
 #define WHITE 0x7                                     // LCD color code
@@ -102,10 +106,45 @@ char tempID[2][6] = {"B4", "E4"};                                               
 long interval = 30 * 1000UL;                                                            // measurement and control interval in second
 ...
 ```
+The comments that are marked with a `//`make this code pretty self-explanatory. The preamble is structured into the general settings - here are the variables that you definitely have to adjust to your application (such as measurement channel number, oxygen thresholds etc.) - and further settings and variables that you only have to touch if you make more substantial changes to the system.
 
-2. Next, the individual subfunctions are defined that execute the different tasks (e.g. send measurement command to the sensor, print oxygen values on the display or create the control output for the valves). These are not necessary, I could write all the code just in the main `loop` (see below). However, it makes everything clearer and easier to understand if large chunks of code are "hidden" in these subfunctions and we only have to call them by their name later.
-3. Next comes `void Setup()`. This section runs once when the arduino boots. Everything that the system needs to boot is defined here - the logfile is created and the serial ports and pins are activated.
-4. Finally, the main `loop`. The arduino will run everything that you write here over and over again - hence its name. Here are all the subfunctions called that are needed for measuring and controlling oxygen.
+### The Subfunctions
+Following (and still technically in the preamble), the individual subfunctions are defined that execute the different tasks (e.g. send measurement command to the sensor, print oxygen values on the display or create the control output for the valves). It's not necessary to create subfunctions, I could write all the code just in the main `loop` (see below). However, it makes everything clearer and easier to understand if large chunks of code are "hidden" in these subfunctions and we only have to call them by their name later. Let's have a look at the top part with the first subfunction:
+```javascript
+//#######################################################################################
+//###                           Requisite Functions                                   ###
+//###               These functions are executed in the main() loop.                  ###
+//### The functions for receiving serial data, parsing it and clearing the buffer are ###
+//### modified from the excellent post on the Arduino Forum by user Robin2 about the  ###
+//### basics of serial communication (http://forum.arduino.cc/index.php?topic=396450).###
+//#######################################################################################
 
-### 
+//# Send the commands to toggle measurement to and readout values from the FireStingO2 devices via Serial #
+//# I copied these functions to switch serial ports based on the active sensor. There's probably a better way to do this
+void toggleMeasurement(char command[6]) {
+  if (activeSensor == 1) {
+    Serial1.write(command);
+    Serial1.write('\r');
+    emptyBuffer = false;
+    Serial1.flush();
+  }
+  else if (activeSensor == 2) {
+    Serial2.write(command);
+    Serial2.write('\r');
+    emptyBuffer = false;
+    Serial2.flush();
+  }
+}
+```
+Let's go through this step by step:
+* `toggleMeasurement` is the name of the subfunction - a function to toggle the oxygen measurement by sending measurement commands to the oxygen sensor via the arduino's serial port. `void` declares it as a function that does not return any value (pretty symbolic, eh?). It is followed by `(char command[6])` which means that this function uses a string with a length of 6 characters as input argument when it's called - e.g. `toggleMeasurement("MSR 1")`. Note that the string "MSR 1" is only 5 characters long - the last space is always reserved for the string terminator (/0) which marks the end of your input string. You might wonder how to choose the commands - well, every device has its own language. The FireStingO2 understands a set of different string commands that will trigger measurement, readout of values or change the settings. PyroScience provided me with the protocol document - kind of a vocabulary list for the sensor from which I took the commands I use in this system.
+* You can see that the rest of the subfunction consists of two similar chunks of code - the only difference is the serial port that is used. These two block of code are separated by an `if` statement: if sensor one is active, the command is sent through serial port one and so on. This is necessary because every sensor is connected to the arduino by a separate serial port. 
+* Next comes one of the core functions of this code: `Serial.write`. It sends whatever you pass on to it through the serial port. As you can see, we pass it the input string `command` that we define when we call the subfunction (e.g. "MSR 1"). In the next line, the same function is used to send a "carriage return" (imagine a typewriter - "ding!") that symbols the sensor that the command has been sent completely and can now be executed by the sensor.
+* Finally, `Serial.flush()` halts the arduino until all the data (the command) has left the serial buffer. This is an important part as it makes sure that the sending of the command is executed completely before any other part of the program runs
+
+### Void Setup
+Next comes `void Setup()`. This section runs once when the arduino boots. Everything that the system needs to boot is defined here - the logfile is created and the serial ports and pins are activated. (Code will come soon)
+
+### The Main Loop
+4. Finally, the main `loop`. The arduino will run everything that you write here over and over again - hence its name. Here are all the subfunctions called that are needed for measuring and controlling oxygen. (Code will come soon).
 
