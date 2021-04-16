@@ -13,6 +13,7 @@
 //#######################################################################################
 
 #include <PID_v1.h>
+#include <SoftwareSerial.h>
 
 //#######################################################################################
 //###                              General settings                                   ###
@@ -20,13 +21,11 @@
 
 long int samples = 1;                                                                           // number of measurements that are averaged to one air saturation value 
                                                                                                 // to reduce sensor fluctuation (oversampling)
-char tankID[][6] = {"B4"};                                                                      // Fish ID assigned to the channel
-long interval = 10 * 1000UL;                                                                     // measurement and control interval in second
-double airSatThreshold = 10.00;                                                                  // air saturation to be kept in % air sat * 1000                          
-double lowDOThreshold = 7.00;                                                                    // threshold for low oxygen that causes the program to do something
-int channel = 1;                                                                                // measurement channel on firesting device
-unsigned long decrTime = 120*60*1000L;                                                           // timespan for DO decrease
+long interval = 30 * 1000UL;                                                                     // measurement and control interval in second
+double airSatThreshold = 400.00;                                                                  // air saturation to be kept in % air sat * 1000                          
+unsigned long decrTime = 30*60*1000L;                                                           // timespan for DO decrease
 unsigned long contTime = 30*60*1000L;                                                            // timespan for continuous DO at airSatThreshold
+SoftwareSerial mySer(10, 11); //RX TX
 
 
 //#######################################################################################
@@ -40,7 +39,7 @@ unsigned long contTime = 30*60*1000L;                                           
 //### tanks.                                                                          ###
 //#######################################################################################
 
-int relayPin = 22;          // pins for relay operation ***ADAPT THIS TO FIT YOUR WIRING***
+int relayPin = 12;          // pins for relay operation ***ADAPT THIS TO FIT YOUR WIRING***
 double Kp = 10;             // coefficient for proportional control
 double Ki = 1;              // coefficient for integrative control
 double Kd = 1;              // coefficient for differential control
@@ -57,7 +56,6 @@ long int WindowSize = 25;                                       // The PID will 
 //#######################################################################################
 
 //# Switches and logical operators #
-boolean lowDO = false;                        // boolean for low oxygen threshold
 boolean newData = false;                      // true if serial data was received from sensors
 boolean emptyBuffer = false;                  // true if buffer for serial data is empty
 
@@ -80,9 +78,7 @@ char bufferChars[numChars];                   // array to store incoming data th
 int len;                                      // length of actually received serial data
 char valueStr[20];                            // array to hold only readings from receivedChars (longer than needed)
 long DOInt;                                   // variable for readings that are parsed from valueStr
-long airSatSum;                               // summing variable for air saturations in case oversampling is used (see sample variable)
 double airSatFloat;                           // array for floating point value of air saturation for datalogging, display etc.
-double lowDOValue;                            // variable for low DO values that are below the critical threshold defined above
 double startDO;                                 // variable for first DO value
 double deltaDO;                                 // variable for DO change per measurement interval
 double changeDO;
@@ -112,13 +108,13 @@ void toggleDOMeasurement(char command[7]) {
   static byte ndx = 0;
   char endMarker = '\r';
   char rc;
-  Serial.write(command);
-  Serial.flush();
-  delay(300);
+  mySer.write(command);
+  mySer.flush();
+  delay(700);
   // Clear echoed measurement command from serial buffer
-  while (Serial.available() > 0 && emptyBuffer == false) {
+  while (mySer.available() > 0 && emptyBuffer == false) {
     delay(2);
-    rc = Serial.read();
+    rc = mySer.read();
     if (rc != endMarker) {
       bufferChars[ndx] = rc;
       ndx++;
@@ -139,11 +135,12 @@ int receiveDOData(char command[11]) {                                           
   static byte ndx = 0;                                                                  // index for storing in the array
   char endMarker = '\r';                                                                // declare the character that marks the end of a serial transmission
   char rc;                                                                              // temporary variable to hold the last received character
-  Serial.write(command);
-  Serial.flush();
-  while (Serial.available() > 0 && newData == false && emptyBuffer == true) {        // only read serial data if the buffer was emptied before and it's new data
+  mySer.write(command);
+  mySer.flush();
+  delay(300);
+  while (mySer.available() > 0 && newData == false && emptyBuffer == true) {        // only read serial data if the buffer was emptied before and it's new data
     delay(2);                                                                        
-    rc = Serial.read();
+    rc = mySer.read();
     if (rc != endMarker) {
       receivedChars[ndx] = rc;                                                        // store the latest character in character array
       ndx++;
@@ -167,14 +164,6 @@ int receiveDOData(char command[11]) {                                           
 }
 
 
-//# Check if air saturations are below the security threshold #
-void DOCheck() {
-  if (airSatFloat < lowDOThreshold){
-    lowDO = true;
-    lowDOValue = airSatFloat;
-  }
-}
-
 //# Toggle relay based on measured airSat values #
 void toggleRelay() {
   relay1PID.Compute();                                  // compute the output (output * 200 = opening time) based on the input (air saturation) and threshold
@@ -192,9 +181,9 @@ void clearAllBuffers() {                                                        
   char endMarker = '\r';
   char rc;
   emptyBuffer = false;
-  while (Serial.available() > 0 && emptyBuffer == false) {
+  while (mySer.available() > 0 && emptyBuffer == false) {
     delay(2);
-    rc = Serial.read();
+    rc = mySer.read();
     if (rc != endMarker) {
       bufferChars[ndx] = rc;
       ndx++;
@@ -214,12 +203,15 @@ void clearAllBuffers() {                                                        
 void(* resetFunc) (void) = 0;                         // function to restart the Arduino when a communication error occurs
 
 
+
+
 //#######################################################################################
 //###                                   Setup                                         ###
 //#######################################################################################
 
 void setup() {
   Serial.begin(19200);
+  mySer.begin(19200);
   
 //# Declare output pins for relay operation #
   pinMode(relayPin, OUTPUT);
@@ -237,6 +229,12 @@ void setup() {
   startDO = DOInt/1000.00;
   deltaDO = (startDO-airSatThreshold)/decrTime;
   lastDO = startDO;
+  Serial.print("DO: ");
+  Serial.println(startDO);
+  delay(500);
+  Serial.print("Decrease rate per minute: ");
+  Serial.print(deltaDO);
+  delay(1000);
 
 //# Set up PID control #
   relay1PID.SetMode(AUTOMATIC);
@@ -257,7 +255,6 @@ void setup() {
 void loop() {
   while(startTime < contEnd){
     startTime = millis();                                       // start timer of loop
-    airSatSum = 0;                                            // reset summing variable for measurements
     DOInt = 0;                                                // reset value variable
     receivedChars[0] = (char)0;                               // empty char arrays
     bufferChars[0] = (char)0;                                   
@@ -278,23 +275,10 @@ void loop() {
     }
     if (newData == true && emptyBuffer == true) {
       Serial.println(airSatFloat);
-      delay(100);
-      DOCheck();                                                  // check if low DO threshold is crossed
-      if (lowDO == true){
-        delay(1200*1000UL);
-        lowDO = false;
-      }
-      else if (lowDO == false){ 
-        toggleRelay();                                            // operate relays to open solenoid valves
-        endTime = millis();
-        elapsed = endTime - startTime;                            // measure duration of loop
-        if (elapsed > interval) {                                 // adjust measurement interval if loop takes longer than measurement interval
-          interval = elapsed;
-        }
-        else {
-          delay(interval - elapsed);                               // adjust delay so that loop duration equals measurement interval
-        }
-      }
+      toggleRelay();                                            // operate relays to open solenoid valves
+      endTime = millis();
+      elapsed = endTime - startTime;                            // measure duration of loop
+      delay(interval - elapsed);                               // adjust delay so that loop duration equals measurement interval
     }
   }
 }
