@@ -35,10 +35,10 @@ const int samples = 1;                                                          
                                                                                   // to reduce sensor fluctuation (oversampling)
 const char tankID[channelNumber][6] = {"B4", "C3", "B1", "C8"};                   // IDs assigned to the channels in the order of the channelArray
 const char tempID[6] = "B4";                                                      // tanks where the temperature sensors are placed (1 per sensor)
-long interval = 30 * 1000UL;                                                     // measurement and control interval in second
-double airSatThreshold[channelNumber] = {100.0, 100.0, 100.0, 15.0};        // air saturation threshold including first decimal                            
+long interval = 30 * 1000UL;                                                      // measurement and control interval in second
+double airSatThreshold[channelNumber] = {100.0, 100.0, 100.0, 15.0};              // air saturation threshold including first decimal                            
 const int chipSelect = 10;                                                        // chip pin for SD card (UNO: 4; MEGA: 53, Adafruit shield: 10)
-const double lowDOThreshold = 7.0;                                                // threshold for low oxygen that causes the program to do something
+const double lowDOThreshold = -7.0;                                                // threshold for low oxygen that causes the program to do something
 const int channelArray[channelNumber] = {1, 2, 3, 4};                             // measurement channels from firesting devices 1 and 2 in that order
 
 
@@ -53,7 +53,7 @@ const int channelArray[channelNumber] = {1, 2, 3, 4};                           
 //### tanks.                                                                          ###
 //#######################################################################################
 
-int relayPin[2][channelNumber] = {                  // pins for relay operation ***ADAPT THIS TO FIT YOUR WIRING***
+int relayPin[1][channelNumber] = {                  // pins for relay operation ***ADAPT THIS TO FIT YOUR WIRING***
   {22, 23, 24, 25},                                 // outputs to experimental tanks
 };     
 double Kp[channelNumber] = {10, 10, 10, 10};        // coefficient for proportional control
@@ -82,8 +82,8 @@ boolean comCheck = false;                     // true if echoed command matches 
 unsigned long startTime;                      // time taken at start of loop
 unsigned long endTime;                        // time taken at end of loop
 unsigned long elapsed;                        // elapsed time between end- and start-time
-int curday;                                   // int of current day (date)
-int lastday;                                  // int of day during last measurement - to detect date change and reboot the system every 24h
+//int curday;                                   // int of current day (date)
+//int lastday;                                  // int of day during last measurement - to detect date change and reboot the system every 24h
 
 //# Logging and SD card #
 RTC_PCF8523 RTC;                              // real time clock
@@ -111,10 +111,10 @@ char lowDOTank[6];                            // array for tank name in which lo
 double tempFloat;                             // variable to store temperature readings for logging
 
 //# Relay operation #
-double relayArray[4][channelNumber];          // array with relay pin and assigned output values
+double relayArray[3][channelNumber];          // array with relay pin and assigned output values
 double Output[channelNumber];                 // holds output that was calculated by PID library
 
-//Hardcoded PID setup - there's probably a way to set up only those that are needed but I can only think of a long chain of if-and conditions
+//Hardcoded PID setup for 4 channels - there's probably a way to set up only those that are needed but I can only think of a long chain of if-and conditions
 PID relay1PID(&airSatFloat[0], &Output[0], &airSatThreshold[0], Kp[0], Ki[0], Kd[0], REVERSE);    
 PID relay2PID(&airSatFloat[1], &Output[1], &airSatThreshold[1], Kp[1], Ki[1], Kd[1], REVERSE);
 PID relay3PID(&airSatFloat[2], &Output[2], &airSatThreshold[2], Kp[2], Ki[2], Kd[2], REVERSE);
@@ -249,8 +249,8 @@ void showNewData() {
   lcd.print(now.hour(), DEC);
   lcd.print(':');
   lcd.print(now.minute(), DEC);
-  lcd.print(tempFloat, 1);
-  lcd.println(" C");
+//  lcd.print(tempFloat, 1);
+//  lcd.print(" C");
   lcd.setCursor(0,1);
   for (int k = 0; k < (channelNumber); k++) {
     airSatLCD = int(lround(airSatFloat[k]));
@@ -262,11 +262,13 @@ void showNewData() {
 
 //# Check if air saturations are below the security threshold #
 void DOCheck() {
-  for (int k = 0; k < channelNumber; k++){
-    if (airSatFloat[k] < lowDOThreshold){
-      lowDO = true;
-      lowDOValue = airSatFloat[k];
-      strcpy(lowDOTank, tankID[k]);
+  if (lowDOThreshold > 0){
+    for (int k = 0; k < channelNumber; k++){
+      if (airSatFloat[k] < lowDOThreshold){
+        lowDO = true;
+        lowDOValue = airSatFloat[k];
+        strcpy(lowDOTank, tankID[k]);
+      }
     }
   }
 }
@@ -279,48 +281,41 @@ void toggleRelay() {
   relay4PID.Compute();
   for (int k = 0; k < channelNumber; k++) {
     relayArray[0][k] = relayPin[0][k];
-    relayArray[1][k] = relayPin[1][k];
-    relayArray[2][k] = double(int(Output[k])*200.00);   // PID computes an output between 0 and 50, the multiplicator makes sure that the relay operation time is at least 200ms
-    relayArray[3][k] = airSatFloat[k];
+    relayArray[1][k] = double(int(Output[k])*200.00);   // PID computes an output between 0 and 50, the multiplicator makes sure that the relay operation time is at least 200ms
+    relayArray[2][k] = airSatFloat[k];
   }
-  double temp[4];                                       // temporary array to sort all channels with the smallest based on the computed output (lowest output first). 
+  double temp[3];                                       // temporary array to sort all channels with the smallest based on the computed output (lowest output first). 
                                                         // This is necessary as the valves are kept open using the delay()-function which halts all activity. 
                                                         // With 8 channels, opening one valve after the other is too time consuming. With the opening times sorted, all valves 
                                                         // can be opened at the same time and then closed one after another.
   for (int k = 0; k < channelNumber - 1; k++) {         // sort array with lowest difference first
     for (int m = k + 1; m < channelNumber; m++) {
-      if (relayArray[2][m] < relayArray[2][k]) {
+      if (relayArray[1][m] < relayArray[1][k]) {
         temp[0] = relayArray[0][k];                     // store higer value + relayPin in temp array
         temp[1] = relayArray[1][k];
         temp[2] = relayArray[2][k];
-        temp[3] = relayArray[3][k];
         relayArray[0][k] = relayArray[0][m];            // move lower value to position i
         relayArray[1][k] = relayArray[1][m];
         relayArray[2][k] = relayArray[2][m];
-        relayArray[3][k] = relayArray[3][m];
         relayArray[0][m] = temp[0];                     // insert higher value at position j
         relayArray[1][m] = temp[1];                     // now the values at i and j have switched places in the relayArray
         relayArray[2][m] = temp[2];
-        relayArray[3][m] = temp[3];
       }
     }
   }
   for (int k = 0; k < channelNumber; k++) {
-    if (relayArray[2][k] > 0){                              // skip the channels that don't have to be operated (output = 0.00)
+    if (relayArray[1][k] > 0){                              // skip the channels that don't have to be operated (output = 0.00)
       for (int m = k; m < channelNumber; m++) {             // open all other valves
-        digitalWrite(relayArray[0][m], LOW);
-        digitalWrite(relayArray[1][m], LOW);
+        digitalWrite(relayArray[0][m], HIGH);
       }
       if (k == 0) {                                         // close the valve with the lowest output first
-        delay(relayArray[2][k]);
-        digitalWrite(relayArray[0][k], HIGH);
-        digitalWrite(relayArray[1][k], HIGH);
+        delay(relayArray[1][k]);
+        digitalWrite(relayArray[0][k], LOW);
       }
       else {
-        delay(relayArray[2][k] - relayArray[2][k - 1]);     // keep the other valves open based on the difference of the output value
-        digitalWrite(relayArray[0][k], HIGH);               // close the valve
-        digitalWrite(relayArray[1][k], HIGH);
-      }
+        delay(relayArray[1][k] - relayArray[1][k - 1]);     // keep the other valves open based on the difference of the output value
+        digitalWrite(relayArray[0][k], LOW);               // close the valve
+        }
     }
   }
 }
@@ -584,7 +579,7 @@ void loop() {
       if (i == 0){
         receiveData(tempReadCom);                             // read temperature once per cycle
         delay(300);
-        if (strncmp(tempReadCom, receivedChars, 9) == 0){     // compare first 9 characters of incoming string with sent string
+        if (strncmp(tempReadCom, receivedChars, 8) == 0){     // compare first 8 characters of incoming string with sent string
           tempFloat = valueInt / 1000.00;
         } 
         else {                                                // reboot system if communication error occurs
@@ -592,12 +587,12 @@ void loop() {
         }
       }
       receiveData(DOReadCom);
-      if (strncmp(DOReadCom, receivedChars, 9) == 0){
-        delay(100);
+      delay(100);
+      if (strncmp(DOReadCom, receivedChars, 8) == 0){
         airSatSum = airSatSum + valueInt;                     // sum up air saturation readings for consecutive samples
       }
       else {
-        resetFunc();
+         resetFunc();
       }
     }
     airSatFloat[i] = airSatSum / (samples * 1000.00);         // create floating point number for logging, display, etc. Results in 0 if there's a communication error
