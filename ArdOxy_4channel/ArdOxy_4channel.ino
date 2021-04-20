@@ -74,7 +74,6 @@ long int WindowSize = 75;                           // The PID will calculate an
 //# Switches and logical operators #
 boolean lowDO = false;                        // boolean for low oxygen threshold
 int activeChannel = 1;                        // measurement channel
-boolean newData = false;                      // true if serial data was received from sensors
 boolean emptyBuffer = false;                  // true if buffer for serial data is empty
 boolean comCheck = false;                     // true if echoed command matches sent command
 
@@ -96,8 +95,8 @@ int n = 0;                                    // row index for logging
 char DOMeasCom[7] = "SEQ1\r";                 // measurement commmand that is sent to sensor during void toggleMeasurement(). SEQ triggers a sequence of measurements 
                                               // (humidity, temperature, pressure, air saturation). This way, the air saturation values will be compensated automatically
                                               // for fluctuations in humidity, temperature and pressure.
-char DOReadCom[11] = "REA1 3 4\r";            // template for DO-read command that is sent to sensor during void toggleRead() (length = 10 because of /0 string terminator)
-char tempReadCom[11] = "REA1 3 5\r";          // temperature read command
+char DOReadCom[10] = "REA1 3 4\r";            // template for DO-read command that is sent to sensor during void toggleRead() (length = 10 because of /0 string terminator)
+char tempReadCom[10] = "REA1 3 5\r";          // temperature read command
 const byte numChars = 30;                     // array length for incoming serial data (longer than needed)
 char receivedChars[numChars];                 // array to store the incoming serial data (used in receiveData() )
 char bufferChars[numChars];                   // array to store incoming data that is not needed (used in clearBuffer() )
@@ -135,7 +134,6 @@ int airSatLCD = 0;                                      // integer to display ro
 
 //# Send the commands to toggle measurement to and readout values from the FireStingO2 devices via Serial #
 void toggleMeasurement(char command[7]) {
-  newData = false;
   emptyBuffer = false;
   static byte ndx = 0;
   char endMarker = '\r';
@@ -170,7 +168,7 @@ int receiveData(char command[11]) {                                             
   Serial1.write(command);
   Serial1.flush();
   delay(200);
-  while (Serial1.available() > 0 && newData == false && emptyBuffer == true) {        // only read serial data if the buffer was emptied before and it's new data
+  while (Serial1.available() > 0 && emptyBuffer == true) {        // only read serial data if the buffer was emptied before and it's new data
     delay(2);                                                                        
     rc = Serial1.read();
     if (rc != endMarker) {
@@ -183,7 +181,6 @@ int receiveData(char command[11]) {                                             
     else {
       receivedChars[ndx] = '\0';                                                      // terminate the string if the end marker is received
       ndx = 0;
-      newData = true;                                                                 // new data has been received and is in the receivedChars buffer
     }
   }
   len = strlen(receivedChars)+1;                  // get length of received string + termination \0
@@ -281,7 +278,7 @@ void toggleRelay() {
   relay4PID.Compute();
   for (int k = 0; k < channelNumber; k++) {
     relayArray[0][k] = relayPin[0][k];
-    relayArray[1][k] = double(int(Output[k])*200.00);   // PID computes an output between 0 and 50, the multiplicator makes sure that the relay operation time is at least 200ms
+    relayArray[1][k] = double(int(Output[k])*200.00);   // PID computes an output between 0 and WindowSize, the multiplicator makes sure that the relay operation time is at least 200ms
     relayArray[2][k] = airSatFloat[k];
   }
   double temp[3];                                       // temporary array to sort all channels with the smallest based on the computed output (lowest output first). 
@@ -403,7 +400,7 @@ void setup() {
   lcd.print("Relay pins..");
   for (int i = 0; i < channelNumber; i++) {       // declare relay pins as output pins and write HIGH to close magnetic valves
     pinMode(relayPin[0][i], OUTPUT);
-    digitalWrite(relayPin[0][i], HIGH);
+    digitalWrite(relayPin[0][i], LOW);
   }
   delay(100);
 
@@ -597,40 +594,38 @@ void loop() {
     }
     airSatFloat[i] = airSatSum / (samples * 1000.00);         // create floating point number for logging, display, etc. Results in 0 if there's a communication error
   }
-  if (newData == true && emptyBuffer == true) {
-    showNewData();                                            // display measurement on LCD
-    delay(100);
-    writeToSD();                                              // log to SD card
-    delay(100);
-    DOCheck();                                                // check if low DO threshold is crossed
-    if (lowDO == true){
-      Serial.print("Program halt: low DO! Measured value: "); // halt program for 20 min to let DO value recover... This could be better used to generate an alarm output or activate air inflow
-      Serial.println(lowDOValue);
+  showNewData();                                            // display measurement on LCD
+  delay(100);
+  writeToSD();                                              // log to SD card
+  delay(100);
+  DOCheck();                                                // check if low DO threshold is crossed
+  if (lowDO == true){
+    Serial.print("Program halt: low DO! Measured value: "); // halt program for 20 min to let DO value recover... This could be better used to generate an alarm output or activate air inflow
+    Serial.println(lowDOValue);
+    lcd.clear();
+    lcd.print("low DO at ");
+    lcd.print(lowDOTank);
+    lcd.setCursor(0,1);
+    lcd.print("measured: ");
+    lcd.print(lowDOValue);
+    delay(1200*1000UL);
+    lowDO = false;
+  }
+  else if (lowDO == false){ 
+    toggleRelay();                                            // operate relays to open solenoid valves
+    endTime = millis();
+    elapsed = endTime - startTime;                            // measure duration of loop
+    if (elapsed > interval) {                                 // adjust measurement interval if loop takes longer than measurement interval
+      interval = elapsed;
       lcd.clear();
-      lcd.print("low DO at ");
-      lcd.print(lowDOTank);
-      lcd.setCursor(0,1);
-      lcd.print("measured: ");
-      lcd.print(lowDOValue);
-      delay(1200*1000UL);
-      lowDO = false;
+      lcd.print("Short int.");
+      lcd.setCursor(0, 1);
+      lcd.print("New: ");
+      lcd.print(interval/1000);
+      lcd.print("sec");
     }
-    else if (lowDO == false){ 
-      toggleRelay();                                            // operate relays to open solenoid valves
-      endTime = millis();
-      elapsed = endTime - startTime;                            // measure duration of loop
-      if (elapsed > interval) {                                 // adjust measurement interval if loop takes longer than measurement interval
-        interval = elapsed;
-        lcd.clear();
-        lcd.print("Short int.");
-        lcd.setCursor(0, 1);
-        lcd.print("New: ");
-        lcd.print(interval/1000);
-        lcd.print("sec");
-      }
-      else {
-        delay(interval - elapsed);                               // adjust delay so that loop duration equals measurement interval
-      }
+    else {
+      delay(interval - elapsed);                               // adjust delay so that loop duration equals measurement interval
     }
   }
 }
