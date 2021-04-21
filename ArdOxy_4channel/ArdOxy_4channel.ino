@@ -59,7 +59,7 @@ int relayPin[1][channelNumber] = {                  // pins for relay operation 
 double Kp[channelNumber] = {10, 10, 10, 10};        // coefficient for proportional control
 double Ki[channelNumber] = {1, 1, 1, 1};            // coefficient for integrative control
 double Kd[channelNumber] = {1, 1, 1, 1};            // coefficient for differential control
-long int WindowSize = 75;                           // The PID will calculate an output between 0 and 75.
+long int WindowSize = interval/400;                 // Max opening duration that the PID will calculate as output (between 0 and interval/400).
                                                     // This will be multiplied by 200 to ensure a minimum opening time of 200 msec. 
                                                     // E.g. output = 1 -> opening time 200 msec; output 50 -> opening time 10,000 msec
 
@@ -74,13 +74,17 @@ long int WindowSize = 75;                           // The PID will calculate an
 //# Switches and logical operators #
 boolean lowDO = false;                        // boolean for low oxygen threshold
 int activeChannel = 1;                        // measurement channel
-boolean emptyBuffer = false;                  // true if buffer for serial data is empty
+unsigned int errorIdx = 0;                    // error counter
+boolean measureEcho = false;                  // switch that is set to true when measurement command has been completely echoed
+boolean newData = false;                      // switch that is set to true when data has been received
+boolean emptyBuffer = false;                  // switch that is set to true when buffers have been emptied (only once during setup)
 boolean comCheck = false;                     // true if echoed command matches sent command
 
 //# Measurement timing #
 unsigned long startTime;                      // time taken at start of loop
 unsigned long endTime;                        // time taken at end of loop
 unsigned long elapsed;                        // elapsed time between end- and start-time
+unsigned long faultyLoop = 0;                 // duration of loops that had to be aborted
 //int curday;                                   // int of current day (date)
 //int lastday;                                  // int of day during last measurement - to detect date change and reboot the system every 24h
 
@@ -134,7 +138,7 @@ int airSatLCD = 0;                                      // integer to display ro
 
 //# Send the commands to toggle measurement to and readout values from the FireStingO2 devices via Serial #
 void toggleMeasurement(char command[7]) {
-  emptyBuffer = false;
+  measureEcho = false;
   static byte ndx = 0;
   char endMarker = '\r';
   char rc;
@@ -142,8 +146,8 @@ void toggleMeasurement(char command[7]) {
   Serial1.flush();
   delay(400);
   // Clear echoed measurement command from serial buffer
-  while (Serial1.available() > 0 && emptyBuffer == false) {
-    delay(2);
+  while (Serial1.available() > 0 && measureEcho == false) {
+    delay(2);                                                                        
     rc = Serial1.read();
     if (rc != endMarker) {
       bufferChars[ndx] = rc;
@@ -155,20 +159,21 @@ void toggleMeasurement(char command[7]) {
     else {
       bufferChars[ndx] = '\0';  // terminate the string
       ndx = 0;
-      emptyBuffer = true;
+      measureEcho = true;
     }
   }
 }
 
 //# Receive serial data (modified from http://forum.arduino.cc/index.php?topic=396450) #
-int receiveData(char command[11]) {                                                                    // receives serial data and stores it in array until endmarker is received
+int receiveData(char command[11]) {                                                     // receives serial data and stores it in array until endmarker is received
+  newData = false;
   static byte ndx = 0;                                                                  // index for storing in the array
   char endMarker = '\r';                                                                // declare the character that marks the end of a serial transmission
   char rc;                                                                              // temporary variable to hold the last received character
   Serial1.write(command);
   Serial1.flush();
-  delay(200);
-  while (Serial1.available() > 0 && emptyBuffer == true) {        // only read serial data if the buffer was emptied before and it's new data
+  delay(100);
+  while (Serial1.available() > 0 && newData == false) {        // only read serial data if the buffer was emptied before and it's new data
     delay(2);                                                                        
     rc = Serial1.read();
     if (rc != endMarker) {
@@ -181,23 +186,26 @@ int receiveData(char command[11]) {                                             
     else {
       receivedChars[ndx] = '\0';                                                      // terminate the string if the end marker is received
       ndx = 0;
+      newData = true;
     }
   }
-  len = strlen(receivedChars)+1;                  // get length of received string + termination \0
-  len = len - 9;                                 // subtract the length of the echoed read command - I determined this by testing it, there might be a smarter way to do this
-  for (int k = 0; k < len; k++) {                 // store the last digits of string in new character array valueStr, starting at and including position 10. This is necessary as
-    valueStr[k] = receivedChars[(9 + k)];        // the sensor echoes the readout command, e.g. "REA1 3 4" before the air saturation values
+  if(newData = true){
+    char* separator = strrchr(receivedChars, ' ');    // the value is separated by a space -> strrchr finds the last occurrence of " " in receivedChars and points
+                                                      // to the following part of the string 
+    valueInt = atol(separator);                       // parse the character to integers - the air saturation values are returned as [% air saturation x 1000], temperature as [°C x 1000]
   }
-  valueInt = atol(valueStr);                      // parse the character to integers - the air saturation values are given as [% air saturation x 1000], temperature as [°C x 1000]
+  else{
+    valueInt = 0;
+  }
   return valueInt;
 }
 
 //# Clear the serial buffer (modified from http://forum.arduino.cc/index.php?topic=396450) #
-void clearAllBuffers() {                                                                    // similar to receiveData(), clears serial buffer from echoes
+void clearAllBuffers() {     // similar to receiveData(), clears serial buffer from echoes
+  emptyBuffer = false;
   static byte ndx = 0;
   char endMarker = '\r';
   char rc;
-  emptyBuffer = false;
   while (Serial.available() > 0 && emptyBuffer == false) {
     delay(2);
     rc = Serial.read();
@@ -255,7 +263,6 @@ void showNewData() {
     lcd.print(" ");
   }
 }
-
 
 //# Check if air saturations are below the security threshold #
 void DOCheck() {
@@ -414,6 +421,7 @@ void setup() {
     lcd.print("RTC failed");
     while(1);
   }
+  
   //RTC.adjust(DateTime(F(__DATE__), F(__TIME__))); // set rtc to the time this sketch was compiled - ONLY NECESSARY ON FIRST UPLOAD, THEN COMMENT THE LINE OUT AND RE-UPLOAD
   delay(100);
   lcd.clear();
@@ -553,6 +561,7 @@ void setup() {
 //#######################################################################################
 
 void loop() {
+  comCheck = true;                                          // is set to false if serial communication is faulty/interrupted
   startTime = millis();                                       // start timer of loop
   DateTime now;
   now = RTC.now();  
@@ -575,57 +584,79 @@ void loop() {
       toggleMeasurement(DOMeasCom);                           // toggle measurement
       if (i == 0){
         receiveData(tempReadCom);                             // read temperature once per cycle
-        delay(300);
-        if (strncmp(tempReadCom, receivedChars, 8) == 0){     // compare first 8 characters of incoming string with sent string
-          tempFloat = valueInt / 1000.00;
+        delay(100);
+        if ((newData == true && strncmp(tempReadCom, receivedChars, 8) != 0)||newData == false){     // compare first 8 characters of incoming string with sent string
+          comCheck = false;
         } 
         else {                                                // reboot system if communication error occurs
-          resetFunc();
+          tempFloat = valueInt / 1000.00;          
         }
       }
-      receiveData(DOReadCom);
-      delay(100);
-      if (strncmp(DOReadCom, receivedChars, 8) == 0){
-        airSatSum = airSatSum + valueInt;                     // sum up air saturation readings for consecutive samples
+      if (comCheck == true){
+        receiveData(DOReadCom);
+        delay(100);
+        if ((newData == true && strncmp(DOReadCom, receivedChars, 8) != 0)||newData == false){
+          comCheck = false;
+        }
+        else{
+          airSatSum = airSatSum + valueInt;                     // sum up air saturation readings for consecutive samples
+        }
+      }
+      airSatFloat[i] = airSatSum / (samples * 1000.00);         // create floating point number for logging, display, etc. Results in 0 if there's a communication error
+    }
+  }
+  if(comCheck == true){
+    showNewData();                                            // display measurement on LCD
+    delay(100);
+    writeToSD();                                              // log to SD card
+    delay(100);
+    DOCheck();                                                // check if low DO threshold is crossed
+    if (lowDO == true){
+      Serial.print("Program halt: low DO! Measured value: "); // halt program for 20 min to let DO value recover... This could be better used to generate an alarm output or activate air inflow
+      Serial.println(lowDOValue);
+      lcd.clear();
+      lcd.print("low DO at ");
+      lcd.print(lowDOTank);
+      lcd.setCursor(0,1);
+      lcd.print("measured: ");
+      lcd.print(lowDOValue);
+      delay(1200*1000UL);
+      lowDO = false;
+    }
+    else { 
+      toggleRelay();                                            // operate relays to open solenoid valves
+      endTime = millis();
+      elapsed = endTime - startTime;                            // measure duration of loop
+      if(faultyLoop != 0){                                      // if previous loop had to be aborted due to communication mismatch, add durations
+        elapsed = elapsed + faultyLoop;
+        faultyLoop = 0;
+      }
+      if (elapsed > interval) {                                 // adjust measurement interval if loop takes longer than measurement interval
+        interval = elapsed;
+        lcd.clear();
+        lcd.print("Short int.");
+        lcd.setCursor(0, 1);
+        lcd.print("New: ");
+        lcd.print(interval/1000);
+        lcd.print("sec");
       }
       else {
-         resetFunc();
+        delay(interval - elapsed);                               // adjust delay so that loop duration equals measurement interval
       }
     }
-    airSatFloat[i] = airSatSum / (samples * 1000.00);         // create floating point number for logging, display, etc. Results in 0 if there's a communication error
   }
-  showNewData();                                            // display measurement on LCD
-  delay(100);
-  writeToSD();                                              // log to SD card
-  delay(100);
-  DOCheck();                                                // check if low DO threshold is crossed
-  if (lowDO == true){
-    Serial.print("Program halt: low DO! Measured value: "); // halt program for 20 min to let DO value recover... This could be better used to generate an alarm output or activate air inflow
-    Serial.println(lowDOValue);
+  else{
     lcd.clear();
-    lcd.print("low DO at ");
-    lcd.print(lowDOTank);
-    lcd.setCursor(0,1);
-    lcd.print("measured: ");
-    lcd.print(lowDOValue);
-    delay(1200*1000UL);
-    lowDO = false;
-  }
-  else if (lowDO == false){ 
-    toggleRelay();                                            // operate relays to open solenoid valves
+    lcd.setCursor(0, 0);
+    lcd.print("Communication");
+    lcd.setCursor(0, 1);
+    lcd.print("Error!");
+    errorIdx += 1;
+    clearAllBuffers();
     endTime = millis();
-    elapsed = endTime - startTime;                            // measure duration of loop
-    if (elapsed > interval) {                                 // adjust measurement interval if loop takes longer than measurement interval
-      interval = elapsed;
-      lcd.clear();
-      lcd.print("Short int.");
-      lcd.setCursor(0, 1);
-      lcd.print("New: ");
-      lcd.print(interval/1000);
-      lcd.print("sec");
-    }
-    else {
-      delay(interval - elapsed);                               // adjust delay so that loop duration equals measurement interval
-    }
+    faultyLoop = endTime - startTime;                            // measure duration of loop
+  }
+  if(errorIdx == 10){
+    resetFunc();
   }
 }
