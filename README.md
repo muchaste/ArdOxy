@@ -1,3 +1,5 @@
+*Update: the basic functions for measurement and readout of values are now included in the Ardoxy_library. If you want to include them in your own sketch, simply download this folder to your Arduino/libraries directory.
+
 # ArdOxy - Beta
 An Arduino controlled system for long term automated oxygen control in fish tanks with FireStingO2 optical oxygen sensors.
 
