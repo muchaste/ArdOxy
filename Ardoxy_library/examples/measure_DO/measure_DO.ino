@@ -2,10 +2,16 @@
   Ardoxy example
 
   Trigger a measurement sequence (DO, temperature, air pressure) and read out the results. Print to the serial monitor.
+  Oxygen sensor is calbrated using the Pyro Oxygen Logger Software.
+  Oxygen probe is connected to channel 1.
 
   The circuit:
   - Arduino Uno
-  - FireStingO2 connected to Pins 9,10
+  - FireStingO2 - 7 pin connector:
+    *Pin 1 connected to Arduino GND
+    *Pin 2 connected to Arduino 5V 
+    *Pin 4 connected to Arduino RX (here: 10)
+    *Pin 5 connected to Arduino TX (here: 9)
 
   created 24 October 2021
   by Stefan Mucha
@@ -15,11 +21,18 @@
 #include <Ardoxy.h>
 #include <SoftwareSerial.h>
 
+// Set sampling interval in ms (due to the duration of the measurement and communication, use interval > 1000 msec)
+unsigned long sampInterval = 5000;
+
 // Define variables
 long result;                                // for measurement result
+double resultFloat;                         // result as floating point number
 int check;                                  // numerical indicator of succesful measurement (1: success, 0: no connection, 9: mismatch)
-char SeqMeasCom[7] = "SEQ1\r";              // measurement commmand that is sent to sensor during void toggleMeasurement(). Number indicates measurement channel
-char DOReadCom[11] = "REA1 3 4\r";          // template for DO-read command that is sent to sensor during void toggleRead() (length = 10 because of /0 string terminator)
+char SeqMeasCom[7] = "SEQ 1\r";             // measurement commmand that is sent to sensor. Number indicates measurement channel
+char DOReadCom[11] = "REA 1 3 4\r";         // template for DO-read command that is sent to sensor
+unsigned long loopStart, elapsed;           // ms timestamp of beginning and end of measurement loop
+bool startTrigger = false;                  // trigger for start of measurement
+
 
 // Initiate connection via SoftwareSerial and create Ardoxy instance
 SoftwareSerial mySer(10, 9);
@@ -28,16 +41,38 @@ Ardoxy ardoxy(&mySer);
 void setup() {
   Serial.begin(19200);
   ardoxy.begin(19200);
-  delay(2000);              // Some delay is necessary before the first measurement
+  delay(1000);                              // some delay is necessary before the first measurement
+  Serial.print("Measurement interval (ms): ");
+  Serial.println(sampInterval);
+  Serial.println("Send \"1\" to start measurement and \"0\" to end measurement");
 }
 
 void loop() {
-  check = ardoxy.measure(SeqMeasCom);
-  Serial.print("Measurement status: ");
-  Serial.println(check);
-  delay(1000);
-  result = ardoxy.readout(DOReadCom);
-  Serial.print("Dissolved oxygen: ");
-  Serial.println(result);
-  delay(1000);
+  // wait for serial input to start measurement.
+  if (Serial.available() > 0) {
+    switch(Serial.read()){
+      case '1':
+          startTrigger = true;
+          Serial.println("started");
+          break;
+      case '0':
+          startTrigger = false;
+          Serial.print("stopped");
+          break;
+    }
+  }
+  
+  if (startTrigger){
+    loopStart = millis();                     // get time at beginning of loop
+    check = ardoxy.measure(SeqMeasCom);
+    Serial.print("Measurement status: ");
+    Serial.println(check);
+    delay(20);
+    result = ardoxy.readout(DOReadCom);
+    resultFloat = result/1000.00;
+    Serial.print("Dissolved oxygen: ");
+    Serial.println(resultFloat);
+    elapsed = millis()-loopStart;
+    delay(sampInterval - elapsed);
+  }
 }
