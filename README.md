@@ -41,9 +41,9 @@ Here are the minimal requirements that I wanted to fulfill with this system:
 
 ### List of Materials
 These are the core components of the oxygen measurement and control system. For details, see below
-Oxygen sensor: PyroScience FireStingO2
-Logging, computation, control: Arduino Mega
-Gas flow control: Solenoid valves or Mass-flow controllers
+* Oxygen sensor: PyroScience FireStingO2
+* Logging, computation, control: Arduino Mega
+* Gas flow control: Solenoid valves or Mass-flow controllers
 
 ### Details
 #### Oxygen Sensor
