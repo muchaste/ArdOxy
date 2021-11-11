@@ -15,11 +15,18 @@ This project is currently under development. The original sketch has been tested
 ## Table of Contents
 * [Background](#background)
 * [Basic Setup](#basic-setup)
-* [The Code](#the-code)
-  * [The Preamble](#the-preamble)
-  * [The Subfunctions](#the-subfunctions)
-  * [Void Setup](#void-setup)
-  * [The Main Loop](#the-main-loop)
+  * [List of Materials](#list-of-materials)
+  * [Details](#details)
+    * [Oxygen Sensor](#oxygen-sensor)
+    * [Computing Component](#computing-component)
+    * [Gas Flow Control](#gas-flow-control)
+      * [Solenoid Valves](#solenoid-valves)
+      * [Mass-Flow Controllers](#mass-flow-controllers)
+  * [Overview](#overview)
+* [Oxygen Control V1](#oxygen-control-v1)
+  * [The Code](#the-code)
+
+
 
 ## Background
 Oxygen is a limited but essential resource for aquatic life. In many ecosystems, dissolved oxygen fluctuates and can reach critically low concentrations - a condition called hypoxia. Fish that have evolved under the pressure of aquatic hypoxia have developed many adaptations, ranging from behavioral strategies and morphology (-> gills!) to biochemical and physiological adjustments. These adaptations secure their survival under hypoxic conditions. For the research of these adaptations, it is advantageous if one can reproduce long term hypoxia (as it occurs naturally) in the lab.
@@ -55,7 +62,7 @@ After a ton of research (there are many manufacturers of optical oxygen sensors 
 * usable as stand-alone sensor for DO logging in other experiments
 * supported by excellent and free software like [AquaResp](http://www.aquaresp.com/) and the [respR package](https://januarharianto.github.io/respR/index.html) for R
 
-#### Computing component
+#### Computing Component
 This covers the measurement-side. Now for logging the values and actively controlling the oxygen we could have a PC (1000$) hooked to the sensors with a custom-written Matlab/LabView ($ license) and a lab-grade DAQ (400-1000$) to generate control outputs but that would mean we use a sledge-hammer to crack a nut and skyrocket the total cost of the system. By the way, it would violate my wish for it to be as open as possible.
 
 Luckily, the FireStingO2 can be addressed via 3.3-5V serial communication - a language that most microcontrollers speak natively!
@@ -64,8 +71,8 @@ This means, instead of heavy equipment, we can use an arduino (or any clone) to 
 * it can be equipped with an LCD display, an SD card and a real time clock
 * there's a great community and many libraries such as the PID library
 
-#### Gas flow control
-##### Solenoid valves
+#### Gas Flow Control
+##### Solenoid Valves
 Now what's still open is the pneumatic mechanism and control algorithm to bubble nitrogen into fish tanks. The obvious solution for this are solenoid valves - they're cheap and easy to control. The downside here is that simple solenoid valves work in a binary way - open and close. There's no ramping up the stream of gas that passes through, there's only bubble and stop. For my setup, I use these simple valves because you can get a decent one for about 30$. To control for the effect of bursts of bubbles (such as stress) and time change, I included 8 additional valves that bubble air into control tanks.
 
 If you want a more sophisticated system, I suggest you check out *servo-assisted solenoid valves* (open/close dynamics depend on the pressure of the gas) or *proportional solenoid valves* (open/close dynamic can be controlled more finely) - they're more likely around 100-150$ a piece though. 
@@ -74,7 +81,7 @@ My valves run on 24V, that means, they receive voltage, they open. This can be e
 For this, I use one of the available and excellent [PID libraries](https://playground.arduino.cc/Code/PIDLibrary/) for the arduino. PID stands for proportional-integral-derivative and what it does, in short, is to keep track of control outputs and their effect in order to optimize the control output. 
 An example helps to understand why we can't do without this: If you want to decrease the oxygen concentration from, say, 70% air saturation to 60% air saturation, a relatively short burst of nitrogen will do because at these concentrations, oxygen will only slowly diffuse back into the water. If you try to reach the same 10% decrease at lower air saturations, let's say from 20% to 10%, you'll need considerably more nitrogen gas. Why? Because now, there's a steep concentration gradient between the low oxygen concentration in the water and the comparably high concentration in the surrounding air. Thus, oxygen will constantly diffuse into the water and you have to actively drive it out. A PID control  "notices" that the same output of nitrogen leads to different outcomes and thus will increase the output at low air saturations. As we work with simple open/close valves, I let the PID controller calculate a time window for opening the valves. 
 
-##### Mass-flow controllers
+##### Mass-Flow Controllers
 Mass-flow controllers (MFCs) are the first and obvious choice to control gas flow. Why aren't they used in the first iteration of this system? Because they're quite expensive!!
 
 However, we have some old MKS mass-flow controllers lying around here. They need a +- 15V power supply and can be controlled with an analog 0-5V input. First tests with these MFCs are very promising and I will supply more information on how to control DO with Ardoxy and MFCs in the future
@@ -83,7 +90,7 @@ However, we have some old MKS mass-flow controllers lying around here. They need
 ![Overview](./images/simple_overview.png)
 As mentioned above, the arduino sends to and receives from the sensor via its serial port. The relays are triggered via digital outputs and all is powered by separate power supplies. Also, as this remains untested at the moment, the temperature sensors are not included in this overview
 
-## Oxygen control V1
+## Oxygen Control V1
 This system was tested in an 8-week hypoxia acclimation experiment. It is designed to measure and control DO in eight tanks. The sketch is now in the "old_sketches" directory
 Here's a list of the components of the last tested configuration for an 8-channel system:
 * 1 Arduino MEGA 2560
