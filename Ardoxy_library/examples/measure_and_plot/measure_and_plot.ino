@@ -46,7 +46,7 @@ Ardoxy ardoxy(&mySer);
 void setup() {
   Serial.begin(19200);
   ardoxy.begin(19200);
-  delay(1000);              // Some delay is necessary before the first measurement
+  delay(500);              // Some delay is necessary before the first measurement
   Serial.print("Measurement interval (ms): ");
   Serial.println(sampInterval);
   Serial.println("Send \"1\" to start measurement and \"0\" to end measurement");
