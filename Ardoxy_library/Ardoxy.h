@@ -14,6 +14,7 @@ class Ardoxy
   public:
     Ardoxy(SoftwareSerial * ss);
     void begin(uint32_t baud);
+    void end();
     int measure(char command[]);
     long readout(char command[]);
   private:

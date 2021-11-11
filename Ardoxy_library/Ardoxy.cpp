@@ -17,6 +17,11 @@ void Ardoxy::begin(uint32_t baud)
   FS_serial->begin(baud);
 }
 
+void Ardoxy::end()
+{
+  FS_serial->end();
+}
+
 // Measure function: send measurement command to firesting via Serial communication
 // Returns:
 // 1 when echo matches command
@@ -35,7 +40,7 @@ int Ardoxy::measure(char command[])
   FS_serial->write(command);
   FS_serial->flush();
   bool received = false;      // Switch to continue reading incoming data until end marker was received
-  delay(700);                 // Let Firesting finish measurement before reading incoming serial data
+  delay(500);                 // Let Firesting finish measurement before reading incoming serial data
 
   if(!FS_serial->available()){ // If there is no incoming data, there is a connection problem
     result = 0;

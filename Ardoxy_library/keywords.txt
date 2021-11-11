@@ -12,6 +12,7 @@
 begin	KEYWORD2
 measure	KEYWORD2
 readout	KEYWORD2
+end 	KEYWORD2
 #######################################
 # Instances (KEYWORD2)
 #######################################
