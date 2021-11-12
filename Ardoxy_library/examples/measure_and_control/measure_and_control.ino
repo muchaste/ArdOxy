@@ -36,7 +36,7 @@
 
 // Set experimental conditions
 unsigned long sampInterval = 5000;                    // sampling interval in ms (due to the duration of the measurement and communication, use interval > 1000 msec)
-double airSatThreshold = 20.00;                       // target air saturation value
+double airSatThreshold = 87.00;                       // target air saturation value
 unsigned long experimentDuration = 20 * 60 * 1000UL;  // duration for controlled DO in ms
 
 // Define pins
@@ -156,6 +156,15 @@ void loop() {
         
         // compute opening time of solenoid valve
         valvePID.Compute();
+
+        // Print to serial
+        Serial.print(DOFloat);
+        Serial.print(";");
+        Serial.print(tempFloat);
+        Serial.print(";");
+        Serial.println(round(output*200/1000));
+
+        // operate solenoid
         if (output*200 < sampInterval) {        // if the opening time is smaller than the loop duration...
           if (valveOpen) {                      // ...if the valve was open from the previous loop, open for the calculated duration, then close
             delay(output*200);
@@ -173,12 +182,7 @@ void loop() {
           valveOpen = true;
         }
 
-        // Print to serial
-        Serial.print(DOFloat);
-        Serial.print(";");
-        Serial.print(tempFloat);
-        Serial.print(";");
-        Serial.println(round(output*200/1000));
+
 
         // wait for next loop iteration
         elapsed = millis()-loopStart;
