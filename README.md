@@ -13,6 +13,9 @@ However, I would strongly recommend to anybody who is new to the field to start 
 This project is currently under development. The original sketch has been tested in an 8-week long term experiment, the new sketches are untested so far.
 
 ## Table of Contents
+* [Installation](#installation)
+  * [Example 1](#example-1-measure_DO)
+  * [Example 2](#example-2-measure_and_plot)
 * [Background](#background)
 * [Basic Setup](#basic-setup)
   * [List of Materials](#list-of-materials)
