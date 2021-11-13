@@ -38,14 +38,10 @@ This example simply triggers a DO measurement in an adjustable interval and prin
 ![Measure_DO_example](./images/measure_DO_screencapture.gif)
 
 
-
-
 ### Example 2: measure_and_plot
 This example sketch sends temperature and DO measurements via serial to the PC. To plot these values, [download SerialPlot](https://hackaday.io/project/5334-serialplot-realtime-plotting-software) and load the settings file from this repo ([link](./SerialPlotter%20config%20measure%20and%20plot.ini). This great piece of software allows you to send commands (to trigger the start of measurements) and to visualize and log values.
 
 ![measure_and_plot_example](./images/measure_and_plot_screencapture.gif)
-
-
 
 
 ## Background
