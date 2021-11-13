@@ -1,4 +1,4 @@
-*Update: the basic functions for measurement and readout of values are now included in the Ardoxy_library. If you want to include them in your own sketch, simply download this folder to your Arduino/libraries directory. Example sketches for measurement are provided, an example for solenoid control will follow soon.*
+*Update: the basic functions for measurement and readout of values are now included in the Ardoxy library. If you want to include them in your own sketch, simply download the "Ardoxy" folder to your Arduino/libraries directory. Example sketches for measurement are provided, an example for solenoid control will follow soon.*
 
 # ArdOxy - Beta
 An Arduino controlled system for long term automated oxygen control in fish tanks with FireStingO2 optical oxygen sensors.
@@ -26,6 +26,18 @@ This project is currently under development. The original sketch has been tested
 * [Oxygen Control V1](#oxygen-control-v1)
   * [The Code](#the-code)
 
+## Installation
+Clone or download this repository and extract the "Ardoxy" folder to the library directory of your Arduino IDE (Windows default: documents>>Arduino>>libraries).
+Start the Arduino IDE and select one of the examples from "File>>Examples>>Ardoxy".
+
+### Example 1: measure_DO
+This example simply triggers a DO measurement in an adjustable interval and prints the measurement status (1 if successful, 0 if no connection, 9 if communication mismatch) along with the measurement result to the serial monitor (I'd recommend the default serial monitor of the Arduino IDE).
+![Measure_DO_example](./images/measure_DO.png)
+
+### Example 2: measure_and_plot
+This example sketch sends temperature and DO measurements via serial to the PC. To plot these values, [download SerialPlot](https://hackaday.io/project/5334-serialplot-realtime-plotting-software) and load the settings file from this repo ([link](./SerialPlotter%20config%20measure%20and%20plot.ini). This great piece of software allows you to send commands (to trigger the start of measurements) and to visualize and log values.
+
+![measure_and_plot_example](./images/measure_and_plot_screencapture.gif)
 
 
 ## Background
