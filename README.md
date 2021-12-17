@@ -1,7 +1,9 @@
-*Update: the basic functions for measurement and readout of values are now included in the Ardoxy library. If you want to include them in your own sketch, simply download the "Ardoxy" folder to your Arduino/libraries directory. Example sketches for measurement and solenoid control of one channel are provided. Multi-channel examples will follow.*
+*Update: the basic functions for measurement and readout of values are now included in the Ardoxy library. If you want to include them in your own sketch, download the "Ardoxy" folder to your Arduino/libraries directory. Example sketches for measurement and solenoid control of one channel are provided. Multi-channel examples will follow.*
 
 # ArdOxy - Beta
 An Arduino controlled system for long term automated oxygen control in fish tanks with FireStingO2 optical oxygen sensors.
+
+Basic functions for serial communication with the FireStingO2 device are summarized in the Ardoxy library. Follow the [installation guide](#installation) for instructions and examples for implementation. The functions are basically just wrappers of generic serial communication functions that are adapted from [this excellent tutorial](https://forum.arduino.cc/t/serial-input-basics-updated/382007).
 
 The purpose of this readme is to make this system as barier-free and reproducible as possible. Below, I will outline the functioning principles of this system and explain basics and details, both of its hardware and software components. So, if you're new to pneumatics and coding, I hope that this documentation provides useful information for you. 
 
