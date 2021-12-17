@@ -86,7 +86,7 @@ double output;                              // holds output that was calculated 
 
 PID valvePID(&DOFloat, &output, &airSatThreshold, Kp, Ki, Kd, REVERSE);
 SoftwareSerial mySer(RX, TX);
-Ardoxy ardoxy(&mySer);
+Ardoxy ardoxy(mySer);
 
 
 //#######################################################################################

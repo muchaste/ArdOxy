@@ -7,19 +7,29 @@
 #include <Ardoxy.h>
 #include <SoftwareSerial.h>
 
-Ardoxy::Ardoxy(SoftwareSerial * ss)
-{
-  FS_serial = ss;
-}
 
-void Ardoxy::begin(uint32_t baud)
+void Ardoxy::begin(uint32_t baudRate)
 {
-  FS_serial->begin(baud);
+  if (hwStream)
+  {
+    hwStream->begin(baudRate);
+  }
+  else
+  {
+    swStream->begin(baudRate);
+  }
 }
 
 void Ardoxy::end()
 {
-  FS_serial->end();
+  if (hwStream)
+  {
+    hwStream->end();
+  }
+  else
+  {
+    swStream->end();
+  }
 }
 
 // Measure function: send measurement command to firesting via Serial communication
@@ -29,26 +39,24 @@ void Ardoxy::end()
 // 9 when there is a mismatch (usually due to timing or connection issues)
 int Ardoxy::measure(char command[])
 {
-  int numChars = 30;                                                                    // length of preallocated char array
-  static byte ndx = 0;                                                                  // index for storing in the array
-  char receivedChars[numChars];                                                         // Array to hold incoming data
-  char endMarker = '\r';                                                                // declare the character that marks the end of a serial transmission
-  char rc;                                                                              // temporary variable to hold the last received character
   int result;
 
+  // Set source Stream
+  stream = !hwStream? (Stream*)swStream : hwStream;
+
   // Send command to FireSting
-  FS_serial->write(command);
-  FS_serial->flush();
+  stream->write(command);
+  stream->flush();
   bool received = false;      // Switch to continue reading incoming data until end marker was received
   delay(500);                 // Let Firesting finish measurement before reading incoming serial data
 
-  if(!FS_serial->available()){ // If there is no incoming data, there is a connection problem
+  if(!stream->available()){ // If there is no incoming data, there is a connection problem
     result = 0;
   }
   else{
-    while (FS_serial->available() > 0 && received == false) {
+    while (stream->available() > 0 && received == false) {
       delay(2);
-      rc = FS_serial->read();
+      rc = stream->read();
       if (rc != endMarker) {
         receivedChars[ndx] = rc;
         ndx++;
@@ -78,20 +86,18 @@ int Ardoxy::measure(char command[])
 // 0 if there is a communication mismatch
 long Ardoxy::readout(char command[])
 {                                       // receives serial data and stores it in array until endmarker is received
-  int numChars = 30;                                                                    // length of preallocated char array
   long valInt;                                                                          // receives parsed numerical value
-  static byte ndx = 0;                                                                  // index for storing in the array
-  char receivedChars[numChars];                                                         // Array to hold incoming data
-  char endMarker = '\r';                                                                // declare the character that marks the end of a serial transmission
-  char rc;                                                                              // temporary variable to hold the last received character
 
-  FS_serial->write(command);
-  FS_serial->flush();
+  // Set source Stream
+  stream = !hwStream? (Stream*)swStream : hwStream;
+
+  stream->write(command);
+  stream->flush();
   bool received = false;
   delay(100);
-  while (FS_serial->available() > 0 && received == false) {          // only read serial data if the buffer was emptied before and it's new data
+  while (stream->available() > 0 && received == false) {          // only read serial data if the buffer was emptied before and it's new data
     delay(2);
-    rc = FS_serial->read();
+    rc = stream->read();
     if (rc != endMarker) {
       receivedChars[ndx] = rc;                                                        // store the latest character in character array
       ndx++;

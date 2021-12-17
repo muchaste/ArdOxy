@@ -30,13 +30,14 @@ double resultFloat;                         // result as floating point number
 int check;                                  // numerical indicator of succesful measurement (1: success, 0: no connection, 9: mismatch)
 char SeqMeasCom[7] = "SEQ 1\r";             // measurement commmand that is sent to sensor. Number indicates measurement channel
 char DOReadCom[11] = "REA 1 3 4\r";         // template for DO-read command that is sent to sensor
+                                            // (numbers: 1 = channel, 3 = measurement results register, 4 = DO as % air sat*1000)
 unsigned long loopStart, elapsed;           // ms timestamp of beginning and end of measurement loop
 bool startTrigger = false;                  // trigger for start of measurement
 
 
 // Initiate connection via SoftwareSerial and create Ardoxy instance
 SoftwareSerial mySer(10, 9);
-Ardoxy ardoxy(&mySer);
+Ardoxy ardoxy(mySer);
 
 void setup() {
   Serial.begin(19200);

@@ -503,11 +503,12 @@ void setup() {
 //# Create a new logfilename #
   lcd.clear();
   lcd.print("Create .csv...");
-  snprintf(filename, sizeof(filename), "dolog%03d.csv", fn); // choose filename for logfile on SD that does not exist yet, includes a three-digit sequence number in the file name
-  while (SD.exists(filename)) {
-    fn++;
-    snprintf(filename, sizeof(filename), "dolog%03d.csv", fn);
-  }
+  snprintf(filename, sizeof(filename), "%d_%d_%d.csv", now.year(), now.month(), now.day()); // choose filename for logfile on SD that does not exist yet, includes a three-digit sequence number in the file name
+//  snprintf(filename, sizeof(filename), "dolog%03d.csv", fn); // choose filename for logfile on SD that does not exist yet, includes a three-digit sequence number in the file name
+//  while (SD.exists(filename)) {
+//    fn++;
+//    snprintf(filename, sizeof(filename), "dolog%03d.csv", fn);
+//  }
   logfile = SD.open(filename, FILE_READ);
   logfile.close();                                          // now filename[] contains the name of a file that doesn't exist
   lcd.setCursor(0,1);

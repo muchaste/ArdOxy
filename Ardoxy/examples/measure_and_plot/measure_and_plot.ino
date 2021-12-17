@@ -41,7 +41,7 @@ unsigned long loopStart, elapsed;           // ms timestamp of beginning and end
 
 // Initiate connection via SoftwareSerial and create Ardoxy instance
 SoftwareSerial mySer(10, 9);
-Ardoxy ardoxy(&mySer);
+Ardoxy ardoxy(mySer);
 
 void setup() {
   Serial.begin(19200);
