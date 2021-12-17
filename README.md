@@ -1,4 +1,4 @@
-*Update: the basic functions for measurement and readout of values are now included in the Ardoxy library. If you want to include them in your own sketch, simply download the "Ardoxy" folder to your Arduino/libraries directory. Example sketches for measurement are provided, an example for solenoid control will follow soon.*
+*Update: the basic functions for measurement and readout of values are now included in the Ardoxy library. If you want to include them in your own sketch, simply download the "Ardoxy" folder to your Arduino/libraries directory. Example sketches for measurement and solenoid control of one channel are provided. Multi-channel examples will follow.*
 
 # ArdOxy - Beta
 An Arduino controlled system for long term automated oxygen control in fish tanks with FireStingO2 optical oxygen sensors.
