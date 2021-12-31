@@ -10,12 +10,12 @@
   Oxygen sensor is calbrated using the Pyro Oxygen Logger Software.
   
   The circuit:
-  - Arduino Uno
+  - Arduino Mega
   - FireStingO2 - 7 pin connector:
     *Pin 1 connected to Arduino GND
     *Pin 2 connected to Arduino 5V 
-    *Pin 4 connected to Arduino RX (here: 10)
-    *Pin 5 connected to Arduino TX (here: 9)
+    *Pin 4 connected to Arduino RX1 (here: 19)
+    *Pin 5 connected to Arduino TX1 (here: 18)
   - Solenoid valve on relay module, connected to digital pins on Arduino (here: 2-5)
 
   The software:
@@ -29,9 +29,8 @@
 */
 
 #include <Ardoxy.h>
-#include <SoftwareSerial.h>
 #include <PID_v1.h>
-#include "SD.h"
+#include <SdFat.h>
 #include <Wire.h>
 #include "RTClib.h"
 #include <Adafruit_RGBLCDShield.h>
@@ -55,11 +54,12 @@ long sampleInterval = 30 * 1000UL;                                              
 double airSatThreshold[channelNumber] = {100.0, 100.0, 100.0, 15.0};                          // air saturation threshold including first decimal                            
 double lowDOThreshold = 7.0;                                                                  // threshold for low oxygen that causes the program to do something
 int channelArray[channelNumber] = {1, 2, 3, 4};                                               // measurement channels from firesting devices 1 and 2 in that order
+const int setRTC = 1;                                                                         // upload this sketch once with setRTC = 1 to set the clock to the time
+                                                                                              // when this sketch was compiled. Then set setRTC = 0 and upload again.
+                                                                                              
 
 // Define pins
-const int RX = 10;                                    // RX and TX pins for serial communication with FireStingO2
-const int TX = 9;                                     // RX and TX pins for serial communication with FireStingO2
-int relayPin[channelNumber] = {5, 6, 7, 8};                     // pins for relay operation ***ADAPT THIS TO FIT YOUR WIRING***
+int relayPin[channelNumber] = {46, 48, 50, 52};                                               // pins for relay operation ***ADAPT THIS TO FIT YOUR WIRING***
 const int chipSelect = 10;                                                                    // chip pin for SD card (UNO: 4; MEGA: 53, Adafruit shield: 10)
 
 
@@ -100,8 +100,9 @@ int curday, lastday;                          // int of current day and last day
 
 //# Logging and SD card #
 RTC_PCF8523 RTC;                              // real time clock
-File logfile;                                 // initializes the logfile
-char filename[16];                            // array for filename of .csv file
+SdFs SD;
+FsFile logfile;                               // initializes the logfile
+char filename[21];                            // array for filename of .csv file
 byte n = 0;                                   // row index for .csv file
 
 //# Oxygen optode #
@@ -115,8 +116,7 @@ long DOSum;                                   // summing variable for air satura
 double DOFloat[channelNumber], tempFloat;     // measurement result as floating point number
 double lowDOValue;                            // variable for low DO values that are below the critical threshold defined above
 char lowDOTank[6];                            // array for tank name in which low DO has been measured
-SoftwareSerial FSSerial(RX,TX);               // 
-Ardoxy ardoxy(&FSSerial);                     //
+Ardoxy ardoxy(Serial1);                       // create ardoxy instance on hardware serial port 1
 
 //# Relay operation #
 double relayArray[3][channelNumber];          // array with relay pin and assigned output values
@@ -240,21 +240,14 @@ void toggleRelay() {
 
 //# Create logfile on SD card (needs global variable "filename")
 void createLogfile(){
+
+  // create filename from time information
   DateTime now;
   now = RTC.now();                                  // fetch time and date from RTC
-  
   snprintf(filename, sizeof(filename), "%d_%d_%d_%d_%d.csv", now.year(), now.month(), now.day(), now.hour(), now.minute()); // choose filename for logfile on SD that does not exist yet, includes a three-digit sequence number in the file name
-//    while (SD.exists(filename)) {
-//      fn++;
-//      snprintf(filename, sizeof(filename), "dolog%03d.csv", fn);
-//    }
-    //logfile = SD.open(filename, FILE_READ);
-    //logfile.close();                                          // now filename[] contains the name of a file that doesn't exist
-
-  logfile = SD.open(filename, FILE_WRITE);
-    
-//# Create logfile #
-  //logfile = SD.open(filename, FILE_WRITE);                  // create logfile and write header information
+  
+  // create logfile and write header information
+  logfile = SD.open(filename, FILE_WRITE);                 
   if (logfile) {
     logfile.println(";");                                   // print a leading blank line
     logfile.print("Date:;");                                // print header information: date, time, air saturation threshold, channels, tank IDs etc
@@ -276,11 +269,6 @@ void createLogfile(){
     logfile.print(channelNumber);
     logfile.print(";Temp Sensor:;");
     logfile.print(tempID);
-    logfile.print("Air sat threshold [% air saturation]:;");
-    for (int i = 0; i < (channelNumber); i++) {
-      logfile.print(airSatThreshold[i]);
-      logfile.print(";");
-    }
     logfile.println();
     logfile.print("Tank ID:;");
     for (int i = 0; i < channelNumber; i++) {
@@ -294,15 +282,23 @@ void createLogfile(){
       logfile.print(";");
     }
     logfile.println(";");
+    logfile.print("Air sat threshold [% air saturation]:;");
+    for (int i = 0; i < (channelNumber); i++) {
+      logfile.print(airSatThreshold[i]);
+      logfile.print(";");
+    }
     logfile.println(";");
-    logfile.print("Measurement;Date;Time;Temp.");                  // header row for measurements: Measurement, Date, Time, tankID1, tankID2,...
+    logfile.println(";");
+    logfile.print("Measurement;Date;Time;Temp_");                  // header row for measurements: Measurement, Date, Time, tankID1, tankID2,...
     logfile.print(tempID);
     logfile.print(";");
     for (int i = 0; i < (channelNumber); i++) {
+      logfile.print("DO_");
       logfile.print(tankID[i]);
       logfile.print(";");
     }
     logfile.println();
+    logfile.flush();                                  // save data to logfile
 
     // Print to Serial monitor
     Serial.print("Logfile created: ");
@@ -413,8 +409,9 @@ void setup() {
     lcd.print("RTC failed");
     while(1);
   }
-  
-  //RTC.adjust(DateTime(F(__DATE__), F(__TIME__))); // set rtc to the time this sketch was compiled - ONLY NECESSARY ON FIRST UPLOAD, THEN COMMENT THE LINE OUT AND RE-UPLOAD
+  if(setRTC){
+    RTC.adjust(DateTime(F(__DATE__), F(__TIME__))); // set rtc to the time this sketch was compiled - ONLY NECESSARY ON FIRST UPLOAD, THEN COMMENT THE LINE OUT AND RE-UPLOAD
+  }
   delay(100);
 
 //# Display time on LCD display #
@@ -522,7 +519,7 @@ void loop() {
       if (check == 1){
         DOInt = ardoxy.readout(DOReadCom);
         if (i == 0){
-          tempInt = ardoxy.readout(DOReadCom);
+          tempInt = ardoxy.readout(tempReadCom);
           tempFloat = tempInt / 1000.00;
         }
       } else {
