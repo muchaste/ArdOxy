@@ -24,6 +24,7 @@
   Or simply read the values from the serial monitor.
 
   created 11 November 2021
+  last revised: 10 January 2022
   by Stefan Mucha
 
 */
@@ -44,7 +45,7 @@
 //### Thus most arrays have a length of 4. Adapt the following lines to your use.     ###
 //#######################################################################################
 
-// Set experimental conditions
+//# Set experimental conditions #
 const int channelNumber = 4;                                                                  // total number of measurement channels
 long int samples = 1;                                                                         // number of measurements that are averaged to one air saturation value 
                                                                                               // to reduce sensor fluctuation (oversampling)
@@ -54,11 +55,13 @@ long sampleInterval = 30 * 1000UL;                                              
 double airSatThreshold[channelNumber] = {100.0, 100.0, 100.0, 15.0};                          // air saturation threshold including first decimal                            
 double lowDOThreshold = 7.0;                                                                  // threshold for low oxygen that causes the program to do something
 int channelArray[channelNumber] = {1, 2, 3, 4};                                               // measurement channels from firesting devices 1 and 2 in that order
+
+//# Set the RTC? #
 const int setRTC = 1;                                                                         // upload this sketch once with setRTC = 1 to set the clock to the time
                                                                                               // when this sketch was compiled. Then set setRTC = 0 and upload again.
                                                                                               
 
-// Define pins
+//# Define pins #
 int relayPin[channelNumber] = {46, 48, 50, 52};                                               // pins for relay operation ***ADAPT THIS TO FIT YOUR WIRING***
 const int chipSelect = 10;                                                                    // chip pin for SD card (UNO: 4; MEGA: 53, Adafruit shield: 10)
 
@@ -122,7 +125,7 @@ Ardoxy ardoxy(Serial1);                       // create ardoxy instance on hardw
 double relayArray[3][channelNumber];          // array with relay pin and assigned output values
 double Output[channelNumber];                 // holds output that was calculated by PID library
 
-//Hardcoded PID setup - there's probably a way to set up only those that are needed but I can only think of a long chain of if-and conditions
+//# Hardcoded PID setup for 4 control channels #
 PID relay1PID(&DOFloat[0], &Output[0], &airSatThreshold[0], Kp[0], Ki[0], Kd[0], REVERSE);    
 PID relay2PID(&DOFloat[1], &Output[1], &airSatThreshold[1], Kp[1], Ki[1], Kd[1], REVERSE);
 PID relay3PID(&DOFloat[2], &Output[2], &airSatThreshold[2], Kp[2], Ki[2], Kd[2], REVERSE);
@@ -136,9 +139,8 @@ int airSatLCD = 0;                            // integer to display rounded valu
 //#######################################################################################
 //###                           Requisite Functions                                   ###
 //###               These functions are executed in the main() loop.                  ###
-//### The functions for receiving serial data, parsing it and clearing the buffer are ###
-//### modified from the excellent post on the Arduino Forum by user Robin2 about the  ###
-//### basics of serial communication (http://forum.arduino.cc/index.php?topic=396450).###
+//### These functions only need to be changed if you want to change the number of     ###
+//###                           measurement channels.                                 ###
 //#######################################################################################
 
 //# Send air saturation readings to serial monitor and LCD #
@@ -241,13 +243,14 @@ void toggleRelay() {
 //# Create logfile on SD card (needs global variable "filename")
 void createLogfile(){
 
-  // create filename from time information
   DateTime now;
   now = RTC.now();                                  // fetch time and date from RTC
-  snprintf(filename, sizeof(filename), "%d_%d_%d_%d_%d.csv", now.year(), now.month(), now.day(), now.hour(), now.minute()); // choose filename for logfile on SD that does not exist yet, includes a three-digit sequence number in the file name
-  
-  // create logfile and write header information
-  logfile = SD.open(filename, FILE_WRITE);                 
+  sprintf(filename, "%4d_%2d_%2d_%2d_%2d.csv", now.year(), now.month(), now.day(), now.hour(), now.minute()); // choose filename for logfile on SD that does not exist yet, includes a three-digit sequence number in the file name
+  Serial.println(filename);
+  delay(100);
+      
+// Create logfile and write header information
+  logfile = SD.open(filename, FILE_WRITE);                
   if (logfile) {
     logfile.println(";");                                   // print a leading blank line
     logfile.print("Date:;");                                // print header information: date, time, air saturation threshold, channels, tank IDs etc
@@ -365,6 +368,7 @@ void writeToSD() {
 
 void setup() {
   Serial.begin(19200);
+  delay(100);
   Serial.println("Automated oxygen control system booting ... ");
   ardoxy.begin(19200);
     
@@ -500,7 +504,7 @@ void loop() {
   DateTime now;
   now = RTC.now();  
   curday = now.day();
-  if (curday != lastday){                                     // system restarts every day -> creates a new logfile for every day
+  if (curday != lastday){                                     // create a new logfile for every day
     logfile.close();
     delay(100);
     createLogfile();
@@ -509,33 +513,40 @@ void loop() {
   
   for (int i = 0; i < channelNumber; i++) {                   // loop that iterates through every channel
     DOSum = 0;                                                // reset summing variable for measurements
-    DOInt = 0;                                             // reset value variable
+    DOInt = 0;                                                // reset value variable
 
     activeChannel = channelArray[i];                          // declare channel to be measured for serial commands
-    sprintf(seqMeasCom, "SEQ %d\r", activeChannel);       // insert channel in measurement command
-    sprintf(DOReadCom, "REA %d 3 4\r", activeChannel);       // insert channel in readout command
+    sprintf(seqMeasCom, "SEQ %d\r", activeChannel);           // insert channel in measurement command
+    sprintf(DOReadCom, "REA %d 3 4\r", activeChannel);        // insert channel in readout command
     for (int j = 0; j < samples; j++) {                       // oversampling loop 
-      check = ardoxy.measure(seqMeasCom);
-      if (check == 1){
-        DOInt = ardoxy.readout(DOReadCom);
-        if (i == 0){
-          tempInt = ardoxy.readout(tempReadCom);
-          tempFloat = tempInt / 1000.00;
+      check = 0;                                              // reset check variable
+      while(!check){                                          // as long as check doesn't come out positive, try to measure and reconnect
+        check = ardoxy.measure(seqMeasCom);
+        if(!check){
+          Serial.println("Com error. Restarting serial communication.");
+          ardoxy.end();
+          delay(1000);
+          ardoxy.begin(19200);
+          delay(2000);
         }
-      } else {
-        DOInt = 0;
       }
-      DOSum = DOSum + DOInt;                     // sum up air saturation readings for consecutive samples
+
+      DOInt = ardoxy.readout(DOReadCom);              // read out DO value
+      if (i == 0){                                    // with the first measurement, also read out temperature
+        tempInt = ardoxy.readout(tempReadCom);
+        tempFloat = tempInt / 1000.00;
+      }
+      DOSum = DOSum + DOInt;                          // sum up air saturation readings for consecutive samples
     }
     DOFloat[i] = DOSum / (samples * 1000.00);         // create floating point number for logging, display, etc. Results in 0 if there's a communication error
   }
-  showNewData();                                            // display measurement on LCD
+  showNewData();                                      // display measurement on LCD
   delay(100);
-  writeToSD();                                              // log to SD card
+  writeToSD();                                        // log to SD card
   delay(100);
-  DOCheck();                                                // check if low DO threshold is crossed
-  if (lowDO == true){
-    Serial.print("Program halt: low DO! Measured value: "); // halt program for 20 min to let DO value recover... This could be better used to generate an alarm output or activate air inflow
+  DOCheck();                                          // check if low DO threshold is crossed
+  if (lowDO){
+    Serial.print("low DO! Measured value: ");         // halt program for 20 min to let DO value recover... more code can be inserted here to open an air valve or to light an alarm LED
     Serial.println(lowDOValue);
     lcd.clear();
     lcd.print("low DO at ");
@@ -545,11 +556,10 @@ void loop() {
     lcd.print(lowDOValue);
     delay(1200*1000UL);
     lowDO = false;
-  }
-  else if (lowDO == false){ 
-    toggleRelay();                                            // operate relays to open solenoid valves
-    elapsed = millis() - loopStart;                            // measure duration of loop
-    if (elapsed > sampleInterval) {                                 // adjust measurement interval if loop takes longer than measurement interval
+  } else { 
+    toggleRelay();                                    // operate relays to open solenoid valves
+    elapsed = millis() - loopStart;                   // calculate duration of loop
+    if (elapsed > sampleInterval) {                   // adjust measurement interval if loop takes longer than measurement interval
       sampleInterval = elapsed;
       lcd.clear();
       lcd.print("Short int.");
@@ -557,9 +567,8 @@ void loop() {
       lcd.print("New: ");
       lcd.print(sampleInterval/1000);
       lcd.print("sec");
-    }
-    else {
-      delay(sampleInterval - elapsed);                               // adjust delay so that loop duration equals measurement interval
+    } else {
+      delay(sampleInterval - elapsed);                // adjust delay so that loop duration equals measurement interval
     }
   }
 }
