@@ -134,6 +134,7 @@ PID relay4PID(&DOFloat[3], &Output[3], &airSatThreshold[3], Kp[3], Ki[3], Kd[3],
 //# LCD Display #
 Adafruit_RGBLCDShield lcd = Adafruit_RGBLCDShield();
 int airSatLCD = 0;                            // integer to display rounded values (due to space constraints on the LCD)
+int cursorX = 0;                              // X position of cursor
 
 
 //#######################################################################################
@@ -449,7 +450,6 @@ void setup() {
 //# Create a new logfile #
   lcd.clear();
   lcd.print("Create .csv...");
-  
   createLogfile();
   delay(500);
 
@@ -464,7 +464,6 @@ void setup() {
   lcd.print(sampleInterval / 1000);
   lcd.print("s");
   delay(2000);
-  
   lcd.clear();
   lcd.print("---Thresholds---");
   delay(1000);
@@ -510,11 +509,16 @@ void loop() {
     createLogfile();
     lastday = curday;
   }
-  
+  lcd.clear();
+  cursorX = 0;
+  lcd.setCursor(0, 0);
+  lcd.print("Measurement...");
   for (int i = 0; i < channelNumber; i++) {                   // loop that iterates through every channel
     DOSum = 0;                                                // reset summing variable for measurements
     DOInt = 0;                                                // reset value variable
-
+    lcd.setCursor(cursorX, 1);
+    lcd.print(".");
+    cursorX += 1;
     activeChannel = channelArray[i];                          // declare channel to be measured for serial commands
     sprintf(seqMeasCom, "SEQ %d\r", activeChannel);           // insert channel in measurement command
     sprintf(DOReadCom, "REA %d 3 4\r", activeChannel);        // insert channel in readout command
@@ -524,6 +528,9 @@ void loop() {
         check = ardoxy.measure(seqMeasCom);
         if(!check){
           Serial.println("Com error. Restarting serial communication.");
+          lcd.clear();
+          lcd.setCursor(0,0);
+          lcd.print("Com error!");
           ardoxy.end();
           delay(1000);
           ardoxy.begin(19200);
