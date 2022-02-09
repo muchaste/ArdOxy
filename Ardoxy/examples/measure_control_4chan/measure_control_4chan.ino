@@ -19,12 +19,11 @@
   - Solenoid valve on relay module, connected to digital pins on Arduino (here: 2-5)
 
   The software:
-  Download SerialPlot and use the configuration file (*.ini) from the Ardoxy github repository.
-  Import the settings in SerialPlot using File>>Load Settings
-  Or simply read the values from the serial monitor.
+  No software needed, values are stored on SD card, or
+  simply read the values from the serial monitor or LCD display
 
   created 11 November 2021
-  last revised: 10 January 2022
+  last revised: 09 February 2022
   by Stefan Mucha
 
 */
@@ -369,7 +368,7 @@ void writeToSD() {
 
 void setup() {
   Serial.begin(19200);
-  delay(100);
+  delay(300);
   Serial.println("Automated oxygen control system booting ... ");
   ardoxy.begin(19200);
     
