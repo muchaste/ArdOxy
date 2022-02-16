@@ -12,7 +12,7 @@ However, I would strongly recommend to anybody who is new to the field to start 
 * [Tutorialspoint](https://www.tutorialspoint.com/arduino/)
 
 ## Project Status
-This project is currently under development. The original sketch has been tested in an 8-week long term experiment, the new sketches are untested so far.
+This project is under development. The original sketch has been tested in an 8-week long term experiment in 2019, the new sketches are running the first long-term test at the moment. The functions have only been tested for FireSting devices with a 3.xx firmware version.
 
 ## Table of Contents
 * [Installation](#installation)
