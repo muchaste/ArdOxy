@@ -3,20 +3,21 @@
 #######################################
 
 #######################################
-# Datatypes (KEYWORD1)
+# Datatypes 	(KEYWORD1)
 #######################################
 
 #######################################
 # Methods and Functions (KEYWORD2)
 #######################################
-begin	KEYWORD2
-measure	KEYWORD2
-readout	KEYWORD2
-end 	KEYWORD2
+begin		KEYWORD2
+measure		KEYWORD2
+measureSeq 	KEYWORD2
+readout		KEYWORD2
+end 		KEYWORD2
 #######################################
-# Instances (KEYWORD2)
+# Instances 	(KEYWORD2)
 #######################################
-Ardoxy	KEYWORD2
+Ardoxy		KEYWORD2
 #######################################
-# Constants (LITERAL1)
+# Constants 	(LITERAL1)
 #######################################
