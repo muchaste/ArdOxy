@@ -11,6 +11,7 @@
   
   The circuit:
   - Arduino Mega
+  - Adafruit datalogger shield with SD card and RTC
   - FireStingO2 - 7 pin connector:
     *Pin 1 connected to Arduino GND
     *Pin 2 connected to Arduino 5V 
@@ -23,7 +24,7 @@
   simply read the values from the serial monitor or LCD display
 
   created 11 November 2021
-  last revised: 09 February 2022
+  last revised: 3 March 2022
   by Stefan Mucha
 
 */
@@ -108,9 +109,6 @@ char filename[21];                            // array for filename of .csv file
 byte n = 0;                                   // row index for .csv file
 
 //# Oxygen optode #
-char seqMeasCom[7] = "SEQ 1\r";               // measurement commmand that is sent to sensor during void toggleMeasurement(). SEQ triggers a sequence of measurements 
-                                              // (humidity, temperature, pressure, air saturation). This way, the air saturation values will be compensated automatically
-                                              // for fluctuations in humidity, temperature and pressure.
 char DOReadCom[11] = "REA 1 3 4\r";           // template for DO-read command that is sent to sensor during void toggleRead() (length = 10 because of /0 string terminator)
 char tempReadCom[11] = "REA 1 3 5\r";         // temperature read command
 long DOInt, tempInt;                          // for measurement result
@@ -369,8 +367,8 @@ void writeToSD() {
 void setup() {
   Serial.begin(19200);
   delay(300);
-  Serial.println("Automated oxygen control system booting ... ");
-  ardoxy.begin(19200);
+  Serial.println("-------------- Ardoxy 4 channel control example -------------");
+  ardoxy.begin();
     
 //# Set up one PID per channel #
   relay1PID.SetMode(AUTOMATIC);
@@ -456,6 +454,7 @@ void setup() {
   Serial.print("Start of measurement cycles. Measurement interval set at ");
   Serial.print(sampleInterval / 1000);
   Serial.println(" seconds.");
+  Serial.println("-------------------------------------------------------------");
   lcd.clear();
   lcd.print("Ready");
   lcd.setCursor(0, 1);
@@ -483,7 +482,7 @@ void setup() {
   }
   delay(2000); 
   lcd.clear();
-
+  
   // Set lastday for saving every day
   lastday = now.day();
 }
@@ -519,12 +518,11 @@ void loop() {
     lcd.print(".");
     cursorX += 1;
     activeChannel = channelArray[i];                          // declare channel to be measured for serial commands
-    sprintf(seqMeasCom, "SEQ %d\r", activeChannel);           // insert channel in measurement command
     sprintf(DOReadCom, "REA %d 3 4\r", activeChannel);        // insert channel in readout command
     for (int j = 0; j < samples; j++) {                       // oversampling loop 
       check = 0;                                              // reset check variable
       while(!check){                                          // as long as check doesn't come out positive, try to measure and reconnect
-        check = ardoxy.measure(seqMeasCom);
+        check = ardoxy.measureSeq(i+1);
         if(!check){
           Serial.println("Com error. Restarting serial communication.");
           lcd.clear();
@@ -532,7 +530,7 @@ void loop() {
           lcd.print("Com error!");
           ardoxy.end();
           delay(1000);
-          ardoxy.begin(19200);
+          ardoxy.begin();
           delay(2000);
         }
       }

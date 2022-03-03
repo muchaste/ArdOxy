@@ -9,7 +9,7 @@
   - Arduino Uno
   - FireStingO2 - 7 pin connector:
     *Pin 1 connected to Arduino GND
-    *Pin 2 connected to Arduino 5V 
+    *Pin 2 connected to Arduino 5V
     *Pin 4 connected to Arduino RX (here: 10)
     *Pin 5 connected to Arduino TX (here: 9)
 
@@ -18,6 +18,7 @@
   Import the settings in SerialPlot using File>>Load Settings
 
   created 11 November 2021
+  last revised 3 March 2022
   by Stefan Mucha
 
 */
@@ -32,7 +33,6 @@ unsigned long sampInterval = 5000;
 long DOInt, tempInt;                        // for measurement result
 double DOFloat, tempFloat;                  // measurement result as floating point number
 int check;                                  // numerical indicator of succesful measurement (1: success, 0: no connection, 9: mismatch)
-char SeqMeasCom[7] = "SEQ 1\r";             // measurement commmand that is sent to sensor. Number indicates measurement channel
 char DOReadCom[11] = "REA 1 3 4\r";         // template for DO-read command that is sent to sensor
 char tempReadCom[11] = "REA 1 3 5\r";       // template for temp-read command that is sent to sensor
 bool startTrigger = false;                  // trigger for start of measurement
@@ -45,8 +45,9 @@ Ardoxy ardoxy(mySer);
 
 void setup() {
   Serial.begin(19200);
-  ardoxy.begin(19200);
+  delay(100);
   Serial.println("-------------- Ardoxy measure and plot example -------------");
+  ardoxy.begin();
   Serial.println("FireSting channel: 1");
   Serial.print("Measurement interval (ms): ");
   Serial.println(sampInterval);
@@ -72,8 +73,8 @@ void loop() {
   if (startTrigger) {
     loopStart = millis();                     // get time at beginning of loop
     
-    // measure sequence (ONLY FIRMWARE 3.XX on FireSting)
-    check = ardoxy.measure(SeqMeasCom);
+    // measure sequence
+    check = ardoxy.measureSeq(1);
     if(check == 1){
       DOInt = ardoxy.readout(DOReadCom);      // read DO value from results register
       delay(20);

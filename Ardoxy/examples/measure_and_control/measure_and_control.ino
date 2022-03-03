@@ -22,6 +22,7 @@
   Or simply read the values from the serial monitor.
 
   created 11 November 2021
+  last revised 3 March 2022
   by Stefan Mucha
 
 */
@@ -64,7 +65,6 @@ long int windowSize = round(sampInterval/200);        // PID controller will cal
 long DOInt, tempInt;                        // for measurement result
 double DOFloat, tempFloat;                  // measurement result as floating point number
 int check;                                  // numerical indicator of succesful measurement (1: success, 0: no connection, 9: mismatch)
-char SeqMeasCom[7] = "SEQ 1\r";             // measurement commmand that is sent to sensor. Number indicates measurement channel
 char DOReadCom[11] = "REA 1 3 4\r";         // template for DO-read command that is sent to sensor
 char tempReadCom[11] = "REA 1 3 5\r";       // template for temp-read command that is sent to sensor
 
@@ -94,8 +94,9 @@ Ardoxy ardoxy(mySer);
 //#######################################################################################
 
 void setup() {
-  Serial.begin(19200);                            // Start serial communication
-  ardoxy.begin(19200);                            // Start serial communication with FireSting
+  // Start serial communication
+  Serial.begin(19200);
+  delay(100);
 
   // Set up PID control
   valvePID.SetMode(AUTOMATIC);
@@ -109,6 +110,7 @@ void setup() {
 
   // Print experimental conditions
   Serial.println("------------ Ardoxy measure and control example ------------");
+  ardoxy.begin();                                 // Start serial communication with FireSting
   Serial.println("FireSting channel: 1");
   Serial.print("Measurement interval (ms): ");
   Serial.println(sampInterval);
@@ -143,7 +145,7 @@ void loop() {
 
     // If the end of the experiment hasn't been reached...
     if (loopStart <= progEnd){
-      check = ardoxy.measure(SeqMeasCom);       // measure sequence (ONLY FIRMWARE 3.XX on FireSting)
+      check = ardoxy.measureSeq(1);             // measure sequence on channel 1
       if(check == 1){
         DOInt = ardoxy.readout(DOReadCom);      // read DO value from results register
         delay(20);

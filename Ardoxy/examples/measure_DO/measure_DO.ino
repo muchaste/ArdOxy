@@ -14,6 +14,7 @@
     *Pin 5 connected to Arduino TX (here: 9)
 
   created 24 October 2021
+  last revised 3 March 2022
   by Stefan Mucha
 
 */
@@ -28,7 +29,6 @@ unsigned long sampInterval = 5000;
 long result;                                // for measurement result
 double resultFloat;                         // result as floating point number
 int check;                                  // numerical indicator of succesful measurement (1: success, 0: no connection, 9: mismatch)
-char SeqMeasCom[7] = "SEQ 1\r";             // measurement commmand that is sent to sensor. Number indicates measurement channel
 char DOReadCom[11] = "REA 1 3 4\r";         // template for DO-read command that is sent to sensor
                                             // (numbers: 1 = channel, 3 = measurement results register, 4 = DO as % air sat*1000)
 unsigned long loopStart, elapsed;           // ms timestamp of beginning and end of measurement loop
@@ -41,8 +41,9 @@ Ardoxy ardoxy(mySer);
 
 void setup() {
   Serial.begin(19200);
-  ardoxy.begin(19200);
+  delay(300);
   Serial.println("---------------- Ardoxy measurement example ----------------");
+  ardoxy.begin();
   Serial.println("FireSting channel: 1");
   Serial.print("Measurement interval (ms): ");
   Serial.println(sampInterval);
@@ -68,7 +69,7 @@ void loop() {
   
   if (startTrigger){
     loopStart = millis();                     // get time at beginning of loop
-    check = ardoxy.measure(SeqMeasCom);
+    check = ardoxy.measureSeq(1);
     Serial.print("Measurement status: ");
     Serial.println(check);
     delay(20);
