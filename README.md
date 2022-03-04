@@ -1,18 +1,14 @@
-*Update: the basic functions for measurement and readout of values are now included in the Ardoxy library. If you want to include them in your own sketch, download the "Ardoxy" folder to your Arduino/libraries directory. Example sketches for measurement and solenoid control of one channel are provided. Multi-channel examples will follow.*
+# ArdOxy
+An Arduino library for interfacing with PyroScience FireSting oxygen meters.
 
-# ArdOxy - Beta
-An Arduino controlled system for long term automated oxygen control in fish tanks with FireStingO2 optical oxygen sensors.
-
-Basic functions for serial communication with the FireStingO2 device are summarized in the Ardoxy library. Follow the [installation guide](#installation) for instructions and examples for implementation. The functions are basically just wrappers of generic serial communication functions that are adapted from [this excellent tutorial](https://forum.arduino.cc/t/serial-input-basics-updated/382007).
-
-The purpose of this readme is to make this system as barier-free and reproducible as possible. Below, I will outline the functioning principles of this system and explain basics and details, both of its hardware and software components. So, if you're new to pneumatics and coding, I hope that this documentation provides useful information for you. 
-
-However, I would strongly recommend to anybody who is new to the field to start with a more simple project to learn the basics. You can find great, free tutorials and projects here:
-* [Arduino community tutorials](https://www.arduino.cc/en/Tutorial/HomePage)
-* [Tutorialspoint](https://www.tutorialspoint.com/arduino/)
+## Use Cases
+* measurement and logging of dissolved oxygen (DO) concentration and temperature without a computer
+* automated control of DO concentration via solenoid valves or mass-flow controller
+* establishment of pre-defined DO regime in fish tanks
+* long-term acclimation to controlled DO conditions
 
 ## Project Status
-This project is under development. The original sketch has been tested in an 8-week long term experiment in 2019, the new sketches are running the first long-term test at the moment. The functions have only been tested for FireSting devices with a 3.xx firmware version.
+This project is under development. 
 
 ## Table of Contents
 * [Installation](#installation)
