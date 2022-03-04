@@ -11,11 +11,11 @@ An Arduino library for interfacing with PyroScience FireSting oxygen meters.
 This project is under development. 
 
 ## Table of Contents
-* [Installation](#installation)
+* [Quick Start](#quick-start)
   * [Example 1](#example-1-measure_DO)
   * [Example 2](#example-2-measure_and_plot)
 * [Background](#background)
-* [Basic Setup](#basic-setup)
+* [Long-Term Oxygen Control: Basic Setup](#long-term-oxygen-control-basic-setup)
   * [List of Materials](#list-of-materials)
   * [Details](#details)
     * [Oxygen Sensor](#oxygen-sensor)
@@ -27,9 +27,12 @@ This project is under development.
 * [Oxygen Control V1](#oxygen-control-v1)
   * [The Code](#the-code)
 
-## Installation
-Clone or download this repository and extract the "Ardoxy" folder to the library directory of your Arduino IDE (Windows default: documents>>Arduino>>libraries).
-Start the Arduino IDE and select one of the examples from "File>>Examples>>Ardoxy".
+## Quick Start
+1. Gather components: the bare minimum are an Arduino (Uno or Mega), a FireSting oxygen meter with sensors, jumper cables and a 7-Pin connector (I use the [Phoenix contact PTSM 0,5/ 7-P-2,5 - 1778887](https://www.phoenixcontact.com/en-ca/products/pcb-plug-ptsm-05-7-p-25-1778887)).
+2. Set up the oxygen meter with the PyroScience Workbench software ([link](https://www.pyroscience.com/en/downloads/laboratory-devices?file=files/website_data/Downloads/Software/InstallerPyroWorkbench.zip&cid=17724). Follow the instructions for your specific device, and calibrate it according to the manual.
+3. Install the [Arduino IDE](https://www.arduino.cc/en/software)
+4. Clone or download this repository and extract the "Ardoxy" folder to the library directory of your Arduino IDE (Windows default: documents>>Arduino>>libraries). Start the Arduino IDE and select one of the examples from "File>>Examples>>Ardoxy".
+5. Connect the Arduino to the meter as described in the example sketch and upload the sketch to the Arduino. Follow measurements using, e.g., the Serial Monitor.
 
 ### Example 1: measure_DO
 This example simply triggers a DO measurement in an adjustable interval and prints the measurement status (1 if successful, 0 if no connection, 9 if communication mismatch) along with the measurement result to the serial monitor (I'd recommend the default serial monitor of the Arduino IDE).
@@ -57,7 +60,7 @@ Here are the minimal requirements that I wanted to fulfill with this system:
 * open and reproducible design
 * affordability
 
-## Basic Setup
+## Long Term Oxygen Control: Basic Setup
 *All components here are listed for reproduction purposes and not as advertisement!*
 
 ### List of Materials
@@ -117,6 +120,5 @@ Here's a list of the components of the last tested configuration for an 8-channe
 
 ### The Code
 *Update: the sketches for multichannel- and long-term hypoxia acclimation have been moved to the "old_sketches" folder. Newer sketches will use the functions from the Ardoxy library*
-
 *To edit and upload the sketches to an arduino, you need the [arduino IDE](https://www.arduino.cc/en/main/software)*.
 
