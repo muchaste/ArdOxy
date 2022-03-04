@@ -29,7 +29,7 @@ This project is under development.
 
 ## Quick Start
 1. Gather components: the bare minimum are an Arduino (Uno or Mega), a FireSting oxygen meter with sensors, jumper cables and a 7-Pin connector (I use the [Phoenix contact PTSM 0,5/ 7-P-2,5 - 1778887](https://www.phoenixcontact.com/en-ca/products/pcb-plug-ptsm-05-7-p-25-1778887)).
-2. Set up the oxygen meter with the PyroScience Workbench software ([link](https://www.pyroscience.com/en/downloads/laboratory-devices?file=files/website_data/Downloads/Software/InstallerPyroWorkbench.zip&cid=17724). Follow the instructions for your specific device, and calibrate it according to the manual.
+2. Set up the oxygen meter with the PyroScience Workbench software ([link](https://www.pyroscience.com/en/downloads/laboratory-devices?file=files/website_data/Downloads/Software/InstallerPyroWorkbench.zip&cid=17724)). Follow the instructions for your specific device, and calibrate it according to the manual.
 3. Install the [Arduino IDE](https://www.arduino.cc/en/software)
 4. Clone or download this repository and extract the "Ardoxy" folder to the library directory of your Arduino IDE (Windows default: documents>>Arduino>>libraries). Start the Arduino IDE and select one of the examples from "File>>Examples>>Ardoxy".
 5. Connect the Arduino to the meter as described in the example sketch and upload the sketch to the Arduino. Follow measurements using, e.g., the Serial Monitor.
