@@ -14,6 +14,7 @@ measure		KEYWORD2
 measureSeq 	KEYWORD2
 readout		KEYWORD2
 end 		KEYWORD2
+calcDays	KEYWORD2
 #######################################
 # Instances 	(KEYWORD2)
 #######################################

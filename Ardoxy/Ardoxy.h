@@ -21,6 +21,7 @@ class Ardoxy
     int measure(char command[]);
     int measureSeq(int chan);
     long readout(char command[]);
+    static int calcDays(int startDay, int startMonth, int startYear, int endDay, int endMonth, int endYear);
 
   private:
     HardwareSerial* hwStream;

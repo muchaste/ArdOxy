@@ -254,3 +254,69 @@ long Ardoxy::readout(char command[])
   }
   return valInt;
 }
+
+// Calculate duration in days between two given dates
+// Returns:
+// integer of number of days (if start and end date are the same, dur = 1)
+int Ardoxy::calcDays(int startDay, int startMonth, int startYear, int endDay, int endMonth, int endYear) {
+  const int monthDays[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+  const int leapMonthDays[12] = {31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+  int dayDuration = 0;
+  // option 1: it is the day of acclimation start
+  if (endDay == startDay && endMonth == startMonth && endYear == startYear){
+    dayDuration = 1;
+  } else if (endDay > startDay && endMonth == startMonth && endYear == startYear){
+    // option 2: it is past the start date and the same month
+    dayDuration = int(endDay - startDay + 1);
+  } else if (endMonth > startMonth && endYear == startYear){
+    // option 3: it is past the start month but the same year (-> the day can be different)
+    // sum up the days of the months between starting month and current month
+    if((endYear > 1970) && !(endYear%4) && ((endYear%100) || !(endYear%400))){
+      for (int j = startMonth; j < int(endMonth); j++){
+        dayDuration += leapMonthDays[j-1];
+      }
+    } else {
+      for (int j = startMonth; j < int(endMonth); j++){
+        dayDuration += monthDays[j-1];
+      }
+    }
+    // subtract the start date and add the current day
+    dayDuration -= startDay;
+    dayDuration += endDay;
+  } else if(endYear > startYear){
+    // option 4: it is past the starting year
+    if((startYear > 1970) && !(startYear%4) && ((startYear%100) || !(startYear%400))){
+      // option 4.1: the starting year was a leap year
+      for (int j = startMonth; j <= 12; j++){
+        dayDuration += leapMonthDays[j-1];
+      }
+      for(int j = 1; j <= int(endMonth); j++){        // crucial here: j starts at 1 and has to run until it is less or even the current month (for the case of january)
+        dayDuration += monthDays[j-1];
+      }
+      // subtract start day and the rest days of the current month (minus 1)
+      dayDuration -= (startDay + monthDays[endMonth-1] - endDay - 1);
+    } else if((endYear > 1970) && !(endYear%4) && ((endYear%100) || !(endYear%400))){
+      // option 4.2: the current year is a leap year
+      for (int j = startMonth; j <= 12; j++){
+        dayDuration += monthDays[j-1];
+      }
+      for(int j = 1; j <= int(endMonth); j++){
+        dayDuration += leapMonthDays[j-1];
+      }
+      // subtract start day and the rest days of the current month (minus 1)
+      dayDuration -= (startDay + leapMonthDays[endMonth-1] - endDay - 1);
+      Serial.println(dayDuration);
+    } else {
+      // option 4.3: no leap years
+      for (int j = startMonth; j <= 12; j++){
+        dayDuration += monthDays[j-1];
+      }
+      for(int j = 1; j <= int(endMonth); j++){
+        dayDuration += monthDays[j-1];
+      }
+      // subtract start day and the rest days of the current month (minus 1)
+      dayDuration -= (startDay + monthDays[endMonth-1] - endDay - 1);
+    }
+  }
+  return dayDuration;
+}
