@@ -14,13 +14,13 @@ void Ardoxy::begin()
   if (hwStream)
   {
     hwStream->begin(19200);
-    delay(200);
+    delay(3000);
     while(hwStream->available()>0){
       char t = hwStream->read();
       delay(2);
     }
-    hwStream->write("#VERS\r");
-    delay(200);
+    hwStream->write("MSR 1\r");
+    delay(300);
     if(hwStream->available()){
       Serial.println("Connection established, Firmware 3.xx");
       ver = 3;
@@ -30,13 +30,13 @@ void Ardoxy::begin()
       }
     } else {
       hwStream->begin(115200);
-      delay(200);
+      delay(3000);
       while(hwStream->available()>0){
         char t = hwStream->read();
         delay(2);
       }
-      hwStream->write("#VERS\r");
-      delay(200);
+      hwStream->write("MSR 1\r");
+      delay(300);
       if(hwStream->available()){
         Serial.println("Connection established, Firmware 4.xx");
         ver = 4;
@@ -53,13 +53,13 @@ void Ardoxy::begin()
   else
   {
     swStream->begin(19200);
-    delay(200);
+    delay(3000);
     while(swStream->available()>0){
       char t = swStream->read();
       delay(2);
     }
-    swStream->write("#VERS\r");
-    delay(200);
+    swStream->write("MSR 1\r");
+    delay(300);
     if(swStream->available()){
       Serial.println("Connection established, Firmware 3.xx");
       ver = 3;
@@ -69,13 +69,13 @@ void Ardoxy::begin()
       }
     } else {
       swStream->begin(115200);
-      delay(200);
+      delay(3000);
       while(swStream->available()>0){
         char t = swStream->read();
         delay(2);
       }
-      swStream->write("#VERS\r");
-      delay(200);
+      swStream->write("MSR 1\r");
+      delay(300);
       if(swStream->available()){
         Serial.println("Connection established, Firmware 4.xx");
         ver = 4;
@@ -127,7 +127,7 @@ int Ardoxy::measure(char command[])
   stream->write(command);
   stream->flush();
   bool received = false;      // Switch to continue reading incoming data until end marker was received
-  delay(500);                 // Let Firesting finish measurement before reading incoming serial data
+  delay(700);                 // Let Firesting finish measurement before reading incoming serial data
 
   if(!stream->available()){ // If there is no incoming data, there is a connection problem
     result = 0;
