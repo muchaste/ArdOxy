@@ -18,8 +18,8 @@ class Ardoxy
     Ardoxy( SoftwareSerial& device) {swStream = &device;}
     void begin();
     void end();
-    int measure(char command[]);
-    int measureSeq(int chan);
+    int measure(char command[], int serialDelay);
+    int measureSeq(int chan, int serialDelay);
     long readout(char command[]);
     static int calcDays(int startDay, int startMonth, int startYear, int endDay, int endMonth, int endYear);
 

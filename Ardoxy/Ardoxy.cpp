@@ -110,7 +110,7 @@ void Ardoxy::end()
 // 1 when echo matches command
 // 0 when there is no echo (connection problem)
 // 9 when there is a mismatch (usually due to timing or connection issues)
-int Ardoxy::measure(char command[])
+int Ardoxy::measure(char command[], int serialDelay=170)
 {
   int result;
 
@@ -127,7 +127,7 @@ int Ardoxy::measure(char command[])
   stream->write(command);
   stream->flush();
   bool received = false;      // Switch to continue reading incoming data until end marker was received
-  delay(70);                 // Let Firesting finish measurement before reading incoming serial data
+  delay(serialDelay);                 // Let Firesting finish measurement before reading incoming serial data
 
   if(!stream->available()){ // If there is no incoming data, there is a connection problem
     result = 0;
@@ -157,7 +157,7 @@ int Ardoxy::measure(char command[])
 }
 
 // Measure Sequence function: same as measure function but with pre-set measurement command
-int Ardoxy::measureSeq(int chan)
+int Ardoxy::measureSeq(int chan, int serialDelay=500)
 {
   int result;
 
@@ -181,7 +181,7 @@ int Ardoxy::measureSeq(int chan)
   stream->write(seqCommand);
   stream->flush();
   bool received = false;      // Switch to continue reading incoming data until end marker was received
-  delay(400);                 // Let Firesting finish measurement before reading incoming serial data
+  delay(serialDelay);         // Let Firesting finish measurement before reading incoming serial data
 
   if(!stream->available()){ // If there is no incoming data, there is a connection problem
     result = 0;
