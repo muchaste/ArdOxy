@@ -127,7 +127,7 @@ int Ardoxy::measure(char command[])
   stream->write(command);
   stream->flush();
   bool received = false;      // Switch to continue reading incoming data until end marker was received
-  delay(700);                 // Let Firesting finish measurement before reading incoming serial data
+  delay(70);                 // Let Firesting finish measurement before reading incoming serial data
 
   if(!stream->available()){ // If there is no incoming data, there is a connection problem
     result = 0;
@@ -181,7 +181,7 @@ int Ardoxy::measureSeq(int chan)
   stream->write(seqCommand);
   stream->flush();
   bool received = false;      // Switch to continue reading incoming data until end marker was received
-  delay(500);                 // Let Firesting finish measurement before reading incoming serial data
+  delay(400);                 // Let Firesting finish measurement before reading incoming serial data
 
   if(!stream->available()){ // If there is no incoming data, there is a connection problem
     result = 0;
@@ -230,7 +230,7 @@ long Ardoxy::readout(char command[])
   stream->write(command);
   stream->flush();
   bool received = false;
-  delay(100);
+  delay(10);
   while (stream->available() > 0 && received == false && ndx <= numChars-1) {          // only read serial data if the buffer was emptied before and it's new data
     delay(2);
     rc = stream->read();
