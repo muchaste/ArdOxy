@@ -10,7 +10,6 @@
 
 void Ardoxy::begin()
 {
-
   if (hwStream)
   {
     hwStream->begin(19200);
@@ -22,12 +21,14 @@ void Ardoxy::begin()
     hwStream->write("MSR 1\r");
     delay(300);
     if(hwStream->available()){
-      Serial.println("Connection established, Firmware 3.xx");
-      ver = 3;
+      Serial.println("Hardware Serial Connection Established, Baudrate 19200");
       while(hwStream->available()>0){
         char t = hwStream->read();
         delay(2);
       }
+      ver = getVer();
+      Serial.print("Firmware Version: ");
+      Serial.println(ver);
     } else {
       hwStream->begin(115200);
       delay(3000);
@@ -38,15 +39,16 @@ void Ardoxy::begin()
       hwStream->write("MSR 1\r");
       delay(300);
       if(hwStream->available()){
-        Serial.println("Connection established, Firmware 4.xx");
-        ver = 4;
+        Serial.println("Hardware Serial Connection Established, Baudrate 115200");
         while(hwStream->available()>0){
           char t = hwStream->read();
           delay(2);
         }
+        ver = getVer();
+        Serial.print("Firmware Version: ");
+        Serial.println(ver);
       } else {
         Serial.println("Couldn't establish connection");
-        ver = 0;
       }
     }
   }
@@ -61,12 +63,14 @@ void Ardoxy::begin()
     swStream->write("MSR 1\r");
     delay(300);
     if(swStream->available()){
-      Serial.println("Connection established, Firmware 3.xx");
-      ver = 3;
+      Serial.println("Software Serial Connection Established, Baudrate 19200");
       while(swStream->available()>0){
         char t = swStream->read();
         delay(2);
       }
+      ver = getVer();
+      Serial.print("Firmware Version: ");
+      Serial.println(ver);
     } else {
       swStream->begin(115200);
       delay(3000);
@@ -77,15 +81,16 @@ void Ardoxy::begin()
       swStream->write("MSR 1\r");
       delay(300);
       if(swStream->available()){
-        Serial.println("Connection established, Firmware 4.xx");
-        ver = 4;
+        Serial.println("Software Serial Connection Established, Baudrate 115200");
         while(swStream->available()>0){
           char t = swStream->read();
           delay(2);
         }
+        ver = getVer();
+        Serial.print("Firmware Version: ");
+        Serial.println(ver);
       } else {
         Serial.println("Couldn't establish connection");
-        ver = 0;
       }
     }
   }
@@ -103,6 +108,57 @@ void Ardoxy::end()
   {
     swStream->end();
   }
+}
+
+// Function to read the firmware version from the device
+int Ardoxy::getVer()
+{
+  int result;
+  // Set source Stream
+  stream = !hwStream? (Stream*)swStream : hwStream;
+
+  // Empty Serial buffer
+  while(stream->available() > 0){
+    char t = stream->read();
+    delay(2);
+  }
+
+  // Send command to FireSting
+  stream->write("#VERS\r");
+  stream->flush();
+  bool received = false;      // Switch to continue reading incoming data until end marker was received
+  delay(170);         // Let Firesting finish measurement before reading incoming serial data
+
+  if(!stream->available()){ // If there is no incoming data, there is a connection problem
+    result = 0;
+  }
+  else{
+    while (stream->available() > 0 && received == false && ndx <= numChars-1) {
+      delay(2);
+      rc = stream->read();
+      if (rc != endMarker && ndx < numChars-1) {
+        receivedChars[ndx] = rc;
+        ndx++;
+      }
+      else {
+        receivedChars[ndx] = '\0';  // terminate the string
+        ndx = 0;
+        received = true;
+        if(strncmp("#VERS", receivedChars, (strlen("#VERS")-1)) == 0){ // Compare command and received string (FS echoes the command)
+          // get the 4th value of the return string (values separated by spaces)
+          char *verChar = strtok(receivedChars, " ");
+          for(int i = 0; i < 3; i++){
+            verChar=strtok(NULL, " ");
+          }
+          result = atol(verChar);                         // parse the character to integers - the air saturation values are returned as [% air saturation x 1000], temperature as [°C x 1000]
+        }
+        else{
+          result = 9;             // return 9 if there is a mismatch
+        }
+      }
+    }
+  }
+  return result;
 }
 
 // Measure function: send measurement command to firesting via Serial communication
@@ -160,12 +216,13 @@ int Ardoxy::measure(char command[], int serialDelay=170)
 int Ardoxy::measureSeq(int chan, int serialDelay=500)
 {
   int result;
+  //char command;
 
   // Paste Channel in measurement command
-  if(ver == 4){
-    sprintf(seqCommand, "MEA %d 47\r", chan);           // insert channel in measurement command
-  } else if (ver == 3) {
-    sprintf(seqCommand, "SEQ %d\r", chan);           // insert channel in measurement command
+  if(ver >= 400){
+    sprintf(measCommand, "MEA %d 3\r", chan);           // insert channel in measurement command
+  } else if (ver < 400) {
+    sprintf(measCommand, "SEQ %d\r", chan);           // insert channel in measurement command
   }
 
   // Set source Stream
@@ -178,7 +235,7 @@ int Ardoxy::measureSeq(int chan, int serialDelay=500)
   }
 
   // Send command to FireSting
-  stream->write(seqCommand);
+  stream->write(measCommand);
   stream->flush();
   bool received = false;      // Switch to continue reading incoming data until end marker was received
   delay(serialDelay);         // Let Firesting finish measurement before reading incoming serial data
@@ -198,7 +255,118 @@ int Ardoxy::measureSeq(int chan, int serialDelay=500)
         receivedChars[ndx] = '\0';  // terminate the string
         ndx = 0;
         received = true;
-        if(strncmp(seqCommand, receivedChars, (strlen(seqCommand)-1)) == 0){ // Compare command and received string (FS echoes the command)
+        if(strncmp(measCommand, receivedChars, (strlen(measCommand)-1)) == 0){ // Compare command and received string (FS echoes the command)
+          result = 1;
+        }
+        else{
+          result = 9;             // return 9 if there is a mismatch
+        }
+      }
+    }
+  }
+  return result;
+}
+
+// Measure DO function: same as measure function but with pre-set measurement command
+int Ardoxy::measureDO(int chan, int serialDelay=170)
+{
+  int result;
+
+  // Paste Channel in measurement command
+  if(ver >= 400){
+    sprintf(measCommand, "MEA %d 1\r", chan);           // insert channel in measurement command
+  } else if (ver < 400) {
+    sprintf(measCommand, "MSR %d\r", chan);           // insert channel in measurement command
+  }
+
+
+  // Set source Stream
+  stream = !hwStream? (Stream*)swStream : hwStream;
+
+  // Empty Serial buffer
+  while(stream->available() > 0){
+    char t = stream->read();
+    delay(2);
+  }
+
+  // Send command to FireSting
+  stream->write(measCommand);
+  stream->flush();
+  bool received = false;      // Switch to continue reading incoming data until end marker was received
+  delay(serialDelay);         // Let Firesting finish measurement before reading incoming serial data
+
+  if(!stream->available()){ // If there is no incoming data, there is a connection problem
+    result = 0;
+  }
+  else{
+    while (stream->available() > 0 && received == false && ndx <= numChars-1) {
+      delay(2);
+      rc = stream->read();
+      if (rc != endMarker && ndx < numChars-1) {
+        receivedChars[ndx] = rc;
+        ndx++;
+      }
+      else {
+        receivedChars[ndx] = '\0';  // terminate the string
+        ndx = 0;
+        received = true;
+        if(strncmp(measCommand, receivedChars, (strlen(measCommand)-1)) == 0){ // Compare command and received string (FS echoes the command)
+          result = 1;
+        }
+        else{
+          result = 9;             // return 9 if there is a mismatch
+        }
+      }
+    }
+  }
+  return result;
+}
+
+// Measure DO function: same as measure function but with pre-set measurement command
+int Ardoxy::measureTemp(int serialDelay=170)
+{
+  int result;
+
+  // Set source Stream
+  stream = !hwStream? (Stream*)swStream : hwStream;
+
+  // Empty Serial buffer
+  while(stream->available() > 0){
+    char t = stream->read();
+    delay(2);
+  }
+
+  // Paste Channel in measurement command
+  if(ver >= 400){
+    sprintf(measCommand, "MEA 1 3\r");           // insert channel in measurement command
+    //measCommand = "MEA 1 3\r";           // insert channel in measurement command
+  } else if (ver < 400) {
+    sprintf(measCommand, "TMP 1\r");           // insert channel in measurement command
+    //measCommand = "TMP 1\r";           // insert channel in measurement command
+  }
+
+  // Send command to FireSting
+  stream->write(measCommand);
+  stream->flush();
+  bool received = false;      // Switch to continue reading incoming data until end marker was received
+  delay(serialDelay);         // Let Firesting finish measurement before reading incoming serial data
+
+  if(!stream->available()){ // If there is no incoming data, there is a connection problem
+    result = 0;
+  }
+  else{
+    while (stream->available() > 0 && received == false && ndx <= numChars-1) {
+      delay(2);
+      rc = stream->read();
+      if (rc != endMarker && ndx < numChars-1) {
+        receivedChars[ndx] = rc;
+        ndx++;
+      }
+      else {
+        receivedChars[ndx] = '\0';  // terminate the string
+        ndx = 0;
+        received = true;
+        if(strncmp(measCommand, receivedChars, (strlen(measCommand)-1)) == 0){ // Compare command and received string (FS echoes the command)
           result = 1;
         }
         else{
@@ -242,6 +410,96 @@ long Ardoxy::readout(char command[])
       receivedChars[ndx] = '\0';                                                      // terminate the string if the end marker is received
       ndx = 0;
       if(strncmp(command, receivedChars, (strlen(command)-1)) == 0){
+        received = true;
+        char* separator = strrchr(receivedChars, ' ');    // the value is separated by a space -> strrchr finds the last occurrence of " " in receivedChars and points
+                                                          // to the following part of the string
+        valInt = atol(separator);                         // parse the character to integers - the air saturation values are returned as [% air saturation x 1000], temperature as [°C x 1000]
+      }
+      else{
+        valInt = 0;
+      }
+    }
+  }
+  return valInt;
+}
+
+// readoutDO - Similar to readout function but with pre-set DO-readout command
+long Ardoxy::readoutDO(int chan)
+{                                       // receives serial data and stores it in array until endmarker is received
+  long valInt;                                                                          // receives parsed numerical value
+
+  // Set source Stream
+  stream = !hwStream? (Stream*)swStream : hwStream;
+
+  // Empty Serial buffer
+  while(stream->available() > 0){
+    char t = stream->read();
+    delay(2);
+  }
+
+  // Paste Channel in measurement command
+  sprintf(measCommand, "RMR %d 3 4 1\r", chan);           // insert channel in measurement command
+
+  stream->write(measCommand);
+  stream->flush();
+  bool received = false;
+  delay(10);
+  while (stream->available() > 0 && received == false && ndx <= numChars-1) {          // only read serial data if the buffer was emptied before and it's new data
+    delay(2);
+    rc = stream->read();
+    if (rc != endMarker && ndx < numChars-1) {
+      receivedChars[ndx] = rc;                                                        // store the latest character in character array
+      ndx++;
+    }
+    else {
+      receivedChars[ndx] = '\0';                                                      // terminate the string if the end marker is received
+      ndx = 0;
+      if(strncmp(measCommand, receivedChars, (strlen(measCommand)-1)) == 0){
+        received = true;
+        char* separator = strrchr(receivedChars, ' ');    // the value is separated by a space -> strrchr finds the last occurrence of " " in receivedChars and points
+                                                          // to the following part of the string
+        valInt = atol(separator);                         // parse the character to integers - the air saturation values are returned as [% air saturation x 1000], temperature as [°C x 1000]
+      }
+      else{
+        valInt = 0;
+      }
+    }
+  }
+  return valInt;
+}
+
+// readoutDO - Similar to readout function but with pre-set DO-readout command
+long Ardoxy::readoutTemp()
+{                                       // receives serial data and stores it in array until endmarker is received
+  long valInt;                                                                          // receives parsed numerical value
+
+  // Set source Stream
+  stream = !hwStream? (Stream*)swStream : hwStream;
+
+  // Empty Serial buffer
+  while(stream->available() > 0){
+    char t = stream->read();
+    delay(2);
+  }
+
+  // Paste Channel in measurement command
+  sprintf(measCommand, "RMR 1 3 5 1\r");           // insert channel in measurement command
+
+  stream->write(measCommand);
+  stream->flush();
+  bool received = false;
+  delay(10);
+  while (stream->available() > 0 && received == false && ndx <= numChars-1) {          // only read serial data if the buffer was emptied before and it's new data
+    delay(2);
+    rc = stream->read();
+    if (rc != endMarker && ndx < numChars-1) {
+      receivedChars[ndx] = rc;                                                        // store the latest character in character array
+      ndx++;
+    }
+    else {
+      receivedChars[ndx] = '\0';                                                      // terminate the string if the end marker is received
+      ndx = 0;
+      if(strncmp(measCommand, receivedChars, (strlen(measCommand)-1)) == 0){
         received = true;
         char* separator = strrchr(receivedChars, ' ');    // the value is separated by a space -> strrchr finds the last occurrence of " " in receivedChars and points
                                                           // to the following part of the string

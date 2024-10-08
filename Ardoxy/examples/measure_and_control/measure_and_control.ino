@@ -12,7 +12,7 @@
   - FireStingO2 - 7 pin connector:
     *Pin 1 connected to Arduino GND
     *Pin 2 connected to Arduino 5V 
-    *Pin 4 connected to Arduino RX (here: 10)
+    *Pin 4 connected to Arduino RX (here: 8)
     *Pin 5 connected to Arduino TX (here: 9)
   - Solenoid valve on relay module, connected to digital pin on Arduino (here: 3)
 
@@ -37,11 +37,11 @@
 
 // Set experimental conditions
 unsigned long sampInterval = 5000;                    // sampling interval in ms (due to the duration of the measurement and communication, use interval > 1000 msec)
-double airSatThreshold = 87.00;                       // target air saturation value
+double airSatThreshold = 40.00;                       // target air saturation value
 unsigned long experimentDuration = 20 * 60 * 1000UL;  // duration for controlled DO in ms
 
 // Define pins
-const int RX = 10;                                    // RX and TX pins for serial communication with FireStingO2
+const int RX = 8;                                     // RX and TX pins for serial communication with FireStingO2
 const int TX = 9;                                     // RX and TX pins for serial communication with FireStingO2
 const int relayPin = 3;                               // output pin to relay module
 
@@ -67,6 +67,8 @@ double DOFloat, tempFloat;                  // measurement result as floating po
 int check;                                  // numerical indicator of succesful measurement (1: success, 0: no connection, 9: mismatch)
 char DOReadCom[11] = "REA 1 3 4\r";         // template for DO-read command that is sent to sensor
 char tempReadCom[11] = "REA 1 3 5\r";       // template for temp-read command that is sent to sensor
+int open = LOW;
+int closed = HIGH;
 
 // Measurement timing
 unsigned long loopStart, elapsed;           // ms timestamp of beginning and end of measurement loop
@@ -81,7 +83,7 @@ double output;                              // holds output that was calculated 
 
 
 //#######################################################################################
-//###                            Initiate libraries                                   ###
+//###                            Initiate Instances                                   ###
 //#######################################################################################
 
 PID valvePID(&DOFloat, &output, &airSatThreshold, Kp, Ki, Kd, REVERSE);
@@ -105,12 +107,11 @@ void setup() {
 
   // Declare output pins for relay operation and write HIGH to close valves (THIS MIGHT DEPEND ON YOUR VALVES)
   pinMode(relayPin, OUTPUT);
-//  delay(50);
-//  digitalWrite(relayPin, HIGH);
+  delay(50);
+  digitalWrite(relayPin, closed);
 
   // Print experimental conditions
   Serial.println("------------ Ardoxy measure and control example ------------");
-  ardoxy.begin();                                 // Start serial communication with FireSting
   Serial.println("FireSting channel: 1");
   Serial.print("Measurement interval (ms): ");
   Serial.println(sampInterval);
@@ -128,6 +129,7 @@ void loop() {
     switch(Serial.read()){
       case '1':
           startTrigger = true;
+          ardoxy.begin();                                 // Start serial communication with FireSting
           Serial.println("DO_air_sat;Temp_deg_C;Open_time");
           // Define time points for decrease end and trial end
           progStart = millis();
@@ -135,7 +137,9 @@ void loop() {
           break;
       case '0':
           startTrigger = false;
-          digitalWrite(relayPin, HIGH);
+          ardoxy.end();
+          Serial.println("Stopped");
+          digitalWrite(relayPin, closed);
           break;
     }
   }
@@ -170,37 +174,35 @@ void loop() {
         if (output*200 < sampInterval) {        // if the opening time is smaller than the loop duration...
           if (valveOpen) {                      // ...if the valve was open from the previous loop, open for the calculated duration, then close
             delay(output*200);
-            digitalWrite(relayPin, HIGH);
+            digitalWrite(relayPin, closed);
             valveOpen = false;
           }
           else {
-            digitalWrite(relayPin, LOW);
+            digitalWrite(relayPin, open);
             delay(output*200);
-            digitalWrite(relayPin, HIGH);
+            digitalWrite(relayPin, closed);
           }
         }
         else {
-          digitalWrite(relayPin, LOW);
-          valveOpen = true;
+          if (!valveOpen) {
+            digitalWrite(relayPin, open);
+            valveOpen = true;
+          }
         }
-
-
-
         // wait for next loop iteration
         elapsed = millis()-loopStart;
         delay(sampInterval - elapsed);          
-      }
-      
-      // If the measurement returns with an error
-      else {
-        startTrigger = false;
-        analogWrite(relayPin, HIGH);
+      }  
+      else {       // If the measurement returns with an error
+        digitalWrite(relayPin, closed);
         Serial.println("Com error. Check connections and send \"1\" to restart.");
+        startTrigger = false;
       }
     }
     else {
-      analogWrite(relayPin, HIGH);
+      digitalWrite(relayPin, closed);
       Serial.println("End of experiment. Arduino stopps. Send \"1\" to re-start.");
+      ardoxy.end();
       startTrigger = false;
     }
   }

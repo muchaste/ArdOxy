@@ -18,9 +18,14 @@ class Ardoxy
     Ardoxy( SoftwareSerial& device) {swStream = &device;}
     void begin();
     void end();
-    int measure(char command[], int serialDelay);
-    int measureSeq(int chan, int serialDelay);
+    int getVer();
+    int measure(char command[], int serialDelay=170);
+    int measureSeq(int chan, int serialDelay=500);
+    int measureDO(int chan, int serialDelay=170);
+    int measureTemp(int serialDelay=170);
     long readout(char command[]);
+    long readoutDO(int chan);
+    long readoutTemp();
     static int calcDays(int startDay, int startMonth, int startYear, int endDay, int endMonth, int endYear);
 
   private:
@@ -32,7 +37,7 @@ class Ardoxy
     char receivedChars[numChars];                                           // Array to hold incoming data
     char endMarker = '\r';                                                  // declare the character that marks the end of a serial transmission
     char rc;                                                                // temporary variable to hold the last received character
-    char seqCommand[11];                                                    // Buffer for measurement command
+    char measCommand[13];                                                   // Buffer for measurement command
 };
 
 #endif

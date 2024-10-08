@@ -10,9 +10,14 @@
 # Methods and Functions (KEYWORD2)
 #######################################
 begin		KEYWORD2
+getVer		KEYWORD2
 measure		KEYWORD2
 measureSeq 	KEYWORD2
+measureDO	KEYWORD2
+measureTemp	KEYWORD2
 readout		KEYWORD2
+readoutDO	KEYWORD2
+readoutTemp	KEYWORD2
 end 		KEYWORD2
 calcDays	KEYWORD2
 #######################################
