@@ -19,10 +19,10 @@ class Ardoxy
     void begin();
     void end();
     int getVer();
-    int measure(char command[], int serialDelay=170);
+    int measure(char command[], int serialDelay=300);
     int measureSeq(int chan, int serialDelay=500);
-    int measureDO(int chan, int serialDelay=170);
-    int measureTemp(int serialDelay=170);
+    int measureDO(int chan, int serialDelay=100);
+    int measureTemp(int serialDelay=300);
     long readout(char command[]);
     long readoutDO(int chan);
     long readoutTemp();

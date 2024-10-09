@@ -166,7 +166,7 @@ int Ardoxy::getVer()
 // 1 when echo matches command
 // 0 when there is no echo (connection problem)
 // 9 when there is a mismatch (usually due to timing or connection issues)
-int Ardoxy::measure(char command[], int serialDelay=170)
+int Ardoxy::measure(char command[], int serialDelay=300)
 {
   int result;
 
@@ -268,7 +268,7 @@ int Ardoxy::measureSeq(int chan, int serialDelay=500)
 }
 
 // Measure DO function: same as measure function but with pre-set measurement command
-int Ardoxy::measureDO(int chan, int serialDelay=170)
+int Ardoxy::measureDO(int chan, int serialDelay=100)
 {
   int result;
 
@@ -323,9 +323,17 @@ int Ardoxy::measureDO(int chan, int serialDelay=170)
 }
 
 // Measure DO function: same as measure function but with pre-set measurement command
-int Ardoxy::measureTemp(int serialDelay=170)
+int Ardoxy::measureTemp(int serialDelay=300)
 {
   int result;
+  int chan = 1;
+
+  // Paste Channel in measurement command
+  if(ver >= 400){
+    sprintf(measCommand, "MEA %d 3\r", chan);           // insert channel in measurement command
+  } else if (ver < 400) {
+    sprintf(measCommand, "TMP %d\r", chan);           // insert channel in measurement command
+  }
 
   // Set source Stream
   stream = !hwStream? (Stream*)swStream : hwStream;
@@ -334,15 +342,6 @@ int Ardoxy::measureTemp(int serialDelay=170)
   while(stream->available() > 0){
     char t = stream->read();
     delay(2);
-  }
-
-  // Paste Channel in measurement command
-  if(ver >= 400){
-    sprintf(measCommand, "MEA 1 3\r");           // insert channel in measurement command
-    //measCommand = "MEA 1 3\r";           // insert channel in measurement command
-  } else if (ver < 400) {
-    sprintf(measCommand, "TMP 1\r");           // insert channel in measurement command
-    //measCommand = "TMP 1\r";           // insert channel in measurement command
   }
 
   // Send command to FireSting
